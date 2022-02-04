@@ -504,6 +504,7 @@ class Module(module.ModuleModel):
             except:
                 return self.access_denied_reply()
         #
+        flask.session.regenerate()
         self.set_auth_context(auth_ctx)
         #
         try:
@@ -544,6 +545,7 @@ class Module(module.ModuleModel):
 
     def logout_success_redirect(self, target_token):
         """ Client: logout OK redirect """
+        flask.session.regenerate()
         self.set_auth_context(dict())
         try:
             target_url = self.verify_target_url(target_token)
