@@ -210,6 +210,9 @@ class Module(module.ModuleModel):
             url_prefix="/",
             static_url_prefix="/",
         )
+        # Hooks
+        self.context.app.errorhandler(Exception)(self._error_handler)
+        self.context.app.after_request(self._after_request_hook)
         # Init RPCs
         for rpc_item in self._rpcs:
             self.context.rpc_manager.register_function(*rpc_item)
@@ -252,6 +255,22 @@ class Module(module.ModuleModel):
         self.db.engine.dispose()
 
     #
+    # Hooks
+    #
+
+    def _error_handler(self, error):
+        log.error("Error: %s", error)
+        return self.access_denied_reply(), 400
+
+    def _after_request_hook(self, response):
+        additional_headers = self.descriptor.config.get(
+            "additional_headers", dict()
+        )
+        for key, value in additional_headers.items():
+            response.headers[key] = value
+        return response
+
+    #
     # Auth, login, logout, info
     #
 
@@ -281,22 +300,19 @@ class Module(module.ModuleModel):
             "target": flask.request.args.get("target", None),
             "scope": flask.request.args.get("scope", None),
         }
-        # Check public rules
-        for rule in self.public_rules:
-            if self._public_rule_matches(rule, source):
-                # Public request
-                return self.access_success_reply(source, "public")
         # Check auth header
         if "Authorization" in flask.request.headers:
             auth_header = flask.request.headers.get("Authorization")
             if " " not in auth_header:
                 # Invalid auth header
-                return self.access_denied_reply()
+                return self.access_denied_reply(source)
             #
             credential_type, credential_data = auth_header.split(" ", 1)
+            credential_type = credential_type.lower()
+            #
             if credential_type not in self.credential_handlers:
                 # No credential handler
-                return self.access_denied_reply()
+                return self.access_denied_reply(source)
             #
             try:
                 auth_type, auth_id, auth_reference = \
@@ -305,7 +321,7 @@ class Module(module.ModuleModel):
                 )
             except:
                 # Bad credential
-                return self.access_denied_reply()
+                return self.access_denied_reply(source)
             #
             return self.access_success_reply(
                 source, auth_type, auth_id, auth_reference
@@ -327,6 +343,11 @@ class Module(module.ModuleModel):
                     self.context.app.session_cookie_name, "-"
                 ),
             )
+        # Check public rules
+        for rule in self.public_rules:
+            if self._public_rule_matches(rule, source):
+                # Public request
+                return self.access_success_reply(source, "public")
         # Auth needed or expired
         self.set_auth_context(dict())
         target_token = self.sign_target_url(self.make_source_url(source))
@@ -431,8 +452,15 @@ class Module(module.ModuleModel):
         )
         flask.session["auth_user_id"] = auth_context.get("user_id", None)
 
-    def access_denied_reply(self):
+    def access_denied_reply(self, source=None):
         """ Traefik/client: bad auth reply/redirect """
+        # Check public rules
+        if source is not None:
+            for rule in self.public_rules:
+                if self._public_rule_matches(rule, source):
+                    # Public request
+                    return self.access_success_reply(source, "public")
+        #
         if "auth_denied_url" in self.descriptor.config:
             return flask.redirect(self.descriptor.config.get("auth_denied_url"))
         return flask.make_response("Access Denied", 403)
@@ -502,6 +530,7 @@ class Module(module.ModuleModel):
             try:
                 auth_ctx = processor_rpc(auth_ctx)
             except:
+                log.exception("Processor failed")
                 return self.access_denied_reply()
         #
         flask.session.regenerate()
@@ -545,6 +574,7 @@ class Module(module.ModuleModel):
 
     def logout_success_redirect(self, target_token):
         """ Client: logout OK redirect """
+        flask.session.destroy()
         flask.session.regenerate()
         self.set_auth_context(dict())
         try:

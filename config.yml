@@ -1,3 +1,6 @@
+additional_headers:
+  Server: Carrier
+
 # db_url: "sqlite:////path/to/auth_core_db.sqlite"  # DB connection URL
 # db_options:  # DB options
 #   pool_pre_ping: true
