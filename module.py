@@ -146,6 +146,8 @@ class Module(module.ModuleModel):
             [self._get_token_permissions, "auth_get_token_permissions"],
             [self._list_token_permissions, "auth_list_token_permissions"],
             [self._resolve_token_permissions, "auth_resolve_token_permissions"],
+            #
+            [self._ping, "auth_ping"],
         ]
 
     #
@@ -1484,3 +1486,12 @@ class Module(module.ModuleModel):
     def _resolve_token_permissions(self, token, scope_id):
         token = self._decode_token(token)
         return self._get_token_permissions(token["id"], scope_id)
+
+    #
+    # RPC: ping
+    #
+
+    @rpc_tools.wrap_exceptions(RuntimeError)
+    def _ping(self):
+        _ = self
+        return True
