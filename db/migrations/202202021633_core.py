@@ -115,7 +115,7 @@ def upgrade(module, payload):
     op.bulk_insert(
         scope_table,
         [
-            {"id": 1, "parent_id": None, "name": "Global"},
+            {"name": "Global", "parent_id": None},
         ]
     )
     #
