@@ -20,6 +20,7 @@
 import re
 import uuid
 import urllib
+import base64
 import datetime
 
 import jwt  # pylint: disable=E0401
@@ -60,6 +61,7 @@ class Module(module.ModuleModel):
             [self._noop_success_mapper, "auth_noop_success_mapper"],
             [self._rpc_success_mapper, "auth_rpc_success_mapper"],
             [self._handle_bearer_token, "auth_handle_bearer_token"],
+            [self._handle_basic_auth, "auth_handle_basic_auth"],
             #
             [
                 self._get_referenced_auth_context,
@@ -230,6 +232,10 @@ class Module(module.ModuleModel):
         self.context.rpc_manager.call.auth_register_credential_handler(
             "bearer", "auth_handle_bearer_token"
         )
+        # Register basic auth handler
+        self.context.rpc_manager.call.auth_register_credential_handler(
+            "basic", "auth_handle_basic_auth"
+        )
         # Register auth tool
         self.descriptor.register_tool("auth", self)
 
@@ -238,6 +244,10 @@ class Module(module.ModuleModel):
         log.info("De-initializing module")
         # Unregister auth tool
         self.descriptor.unregister_tool("auth")
+        # Unregister basic token handler
+        self.context.rpc_manager.call.auth_unregister_credential_handler(
+            "basic"
+        )
         # Unregister bearer token handler
         self.context.rpc_manager.call.auth_unregister_credential_handler(
             "bearer"
@@ -632,6 +642,19 @@ class Module(module.ModuleModel):
             raise ValueError("Token expired")
         #
         return "token", token["id"], "-"
+
+    #
+    # RPC: Basic auth handler
+    #
+
+    @rpc_tools.wrap_exceptions(RuntimeError)
+    def _handle_basic_auth(self, source, auth_data):
+        try:
+            token_data, _ = base64.b64decode(auth_data).decode().split(":", 1)
+        except:
+            raise ValueError("Bad auth data")
+        #
+        return self._handle_bearer_token(source, token_data)
 
     #
     # RPC: referenced auth context
