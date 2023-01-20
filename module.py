@@ -514,6 +514,7 @@ class Module(module.ModuleModel):
                     flask.url_for(
                         target_info["login_route"],
                         target_to=target_token,
+                        _external=True
                     )
                 )
             except:
