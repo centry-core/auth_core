@@ -956,14 +956,14 @@ class Module(module.ModuleModel):
     #
 
     @rpc_tools.wrap_exceptions(RuntimeError)
-    def _add_group(self, name="", parent_id=None, id=...):
+    def _add_group(self, name="", parent_id=None, id_=...) -> int:
         values = {
             "name": name,
             "parent_id": parent_id,
         }
         #
-        if id is not ...:
-            values["id"] = id
+        if id_ is not ...:
+            values["id"] = id_
         #
         with self.db.engine.connect() as connection:
             return connection.execute(
@@ -971,20 +971,20 @@ class Module(module.ModuleModel):
             ).inserted_primary_key[0]
 
     @rpc_tools.wrap_exceptions(RuntimeError)
-    def _delete_group(self, id):
+    def _delete_group(self, id_) -> int:
         with self.db.engine.connect() as connection:
             return connection.execute(
                 self.db.tbl.group.delete().where(
-                    self.db.tbl.group.c.id == id
+                    self.db.tbl.group.c.id == id_
                 )
             ).rowcount
 
     @rpc_tools.wrap_exceptions(RuntimeError)
-    def _get_group(self, id):
+    def _get_group(self, id_) -> dict:
         with self.db.engine.connect() as connection:
             group = connection.execute(
                 self.db.tbl.group.select().where(
-                    self.db.tbl.group.c.id == id,
+                    self.db.tbl.group.c.id == id_,
                 )
             ).mappings().one()
         return db_tools.sqlalchemy_mapping_to_dict(group)
