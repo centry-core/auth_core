@@ -32,6 +32,7 @@ from pylon.core.tools import web  # pylint: disable=E0611,E0401
 from pylon.core.tools import module  # pylint: disable=E0611,E0401
 
 from pylon.core.tools.context import Context as Holder  # pylint: disable=E0611,E0401
+from sqlalchemy.orm import sessionmaker
 
 from .db import db_migrations
 from .db import db_tools
@@ -150,6 +151,11 @@ class Module(module.ModuleModel):
             [self._resolve_token_permissions, "auth_resolve_token_permissions"],
             #
             [self._ping, "auth_ping"],
+            #
+            [self.get_roles, "auth_get_roles"],
+            [self.get_permissions, "auth_get_permissions"],
+            [self.set_permission_for_role, "auth_set_permission_for_role"],
+            [self.remove_permission_from_role, "auth_remove_permission_from_role"],
         ]
 
     #
@@ -167,6 +173,7 @@ class Module(module.ModuleModel):
         self.db.engine = sqlalchemy.create_engine(
             self.db.url, **self.db.options
         )
+        self.db.session = sessionmaker(bind=self.db.engine)()
         self.db.metadata = sqlalchemy.MetaData()
         #
         self.db.tbl.user = sqlalchemy.Table(
@@ -207,6 +214,14 @@ class Module(module.ModuleModel):
         )
         self.db.tbl.token_permission = sqlalchemy.Table(
             f"{module_name}__token_permission", self.db.metadata,
+            autoload_with=self.db.engine,
+        )
+        self.db.tbl.role = sqlalchemy.Table(
+            f"{module_name}__role", self.db.metadata,
+            autoload_with=self.db.engine,
+        )
+        self.db.tbl.role_permission = sqlalchemy.Table(
+            f"{module_name}__role_permission", self.db.metadata,
             autoload_with=self.db.engine,
         )
         # Init Blueprint
@@ -328,9 +343,9 @@ class Module(module.ModuleModel):
             #
             try:
                 auth_type, auth_id, auth_reference = \
-                self.credential_handlers[credential_type](
-                    source, credential_data
-                )
+                    self.credential_handlers[credential_type](
+                        source, credential_data
+                    )
             except:
                 # Bad credential
                 return self.access_denied_reply(source)
@@ -342,8 +357,8 @@ class Module(module.ModuleModel):
         auth_ctx = self.get_auth_context()
         if auth_ctx["done"] and \
                 (
-                    auth_ctx["expiration"] is None or
-                    datetime.datetime.now() < auth_ctx["expiration"]
+                        auth_ctx["expiration"] is None or
+                        datetime.datetime.now() < auth_ctx["expiration"]
                 ):
             # Auth done
             return self.access_success_reply(
@@ -480,7 +495,7 @@ class Module(module.ModuleModel):
     def access_success_reply(
             self, source,
             auth_type, auth_id="-", auth_reference="-",
-        ):
+    ):
         """ Traefik: auth OK reply """
         auth_target = source["target"]
         if auth_target not in self.success_mappers:
@@ -1001,7 +1016,7 @@ class Module(module.ModuleModel):
     @rpc_tools.wrap_exceptions(RuntimeError)
     def _walk_group_tree(self, id):
         groups = self._list_groups()
-        group_map = {item["id"]:item for item in groups}
+        group_map = {item["id"]: item for item in groups}
         #
         result = list()
         #
@@ -1185,7 +1200,7 @@ class Module(module.ModuleModel):
     @rpc_tools.wrap_exceptions(RuntimeError)
     def _walk_scope_tree(self, id):
         scopes = self._list_scopes()
-        scope_map = {item["id"]:item for item in scopes}
+        scope_map = {item["id"]: item for item in scopes}
         #
         result = list()
         #
@@ -1519,3 +1534,87 @@ class Module(module.ModuleModel):
     def _ping(self):
         _ = self
         return True
+
+    @rpc_tools.wrap_exceptions(RuntimeError)
+    def get_roles(self, scope_id=1) -> list[str]:
+        with self.db.engine.connect() as connection:
+            data = connection.execute(
+                self.db.tbl.role.select().where(
+                    self.db.tbl.role.c.scope_id == scope_id,
+                )
+            ).mappings().all()
+            log.info(f"{data=}")
+        return [
+            db_tools.sqlalchemy_mapping_to_dict(item) for item in data
+        ]
+
+    def get_permissions(self, scope_id=1):
+        #
+        with self.db.engine.connect() as connection:
+            data_1 = connection.execute(
+                self.db.tbl.role.join(
+                    self.db.tbl.role_permission, isouter=True
+                ).select().where(
+                    self.db.tbl.role.c.scope_id == scope_id,
+                ).order_by(self.db.tbl.role.c.name)
+            ).mappings().all()
+        log.info(f"{data_1=}")
+        return [
+            db_tools.sqlalchemy_mapping_to_dict(item) for item in data_1
+        ]
+
+    def get_permissions_by_role(self, role_name, scope_id=1):
+        #
+        with self.db.engine.connect() as connection:
+            data_1 = connection.execute(
+                self.db.tbl.role.join(
+                    self.db.tbl.role_permission, isouter=True
+                ).select()
+                .where(
+                    self.db.tbl.role.c.name == role_name,
+                    self.db.tbl.role.c.scope_id == scope_id
+                )
+                .order_by(self.db.tbl.role.c.name)
+            ).mappings().all()
+        log.info(f"{data_1=}")
+        return [
+            db_tools.sqlalchemy_mapping_to_dict(item) for item in data_1
+        ]
+
+    def set_permission_for_role(self, role_name, permission_name, scope_id=1):
+        with self.db.engine.connect() as connection:
+            data = connection.execute(
+                self.db.tbl.role.select().where(
+                    self.db.tbl.role.c.name == role_name,
+                    self.db.tbl.role.c.scope_id == scope_id
+                )
+            ).mappings().one()
+            log.info(f"{data=}")
+            role_id = data["id"]
+            data = connection.execute(
+                self.db.tbl.role_permission.insert().values(
+                    role_id=role_id,
+                    permission=permission_name,
+                )
+            ).inserted_primary_key[0]
+            log.info(f"{data=}")
+        return data
+
+    def remove_permission_from_role(self, role_name, permission_name, scope_id=1):
+        with self.db.engine.connect() as connection:
+            data = connection.execute(
+                self.db.tbl.role.select().where(
+                    self.db.tbl.role.c.name == role_name,
+                    self.db.tbl.role.c.scope_id == scope_id
+                )
+            ).mappings().one()
+            log.info(f"To delete in role {data=}")
+            role_id = data["id"]
+            data = connection.execute(
+                self.db.tbl.role_permission.delete().where(
+                    self.db.tbl.role_permission.c.role_id == role_id,
+                    self.db.tbl.role_permission.c.permission == permission_name,
+                )
+            ).rowcount
+            log.info(f"Deleted {data=}")
+        return data

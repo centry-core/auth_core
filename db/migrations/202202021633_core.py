@@ -24,6 +24,7 @@ branch_labels = None
 from alembic import op
 import sqlalchemy as sa
 
+
 def upgrade(module, payload):
     module_name = module.descriptor.name
     #
@@ -200,6 +201,26 @@ def upgrade(module, payload):
         ),
         sa.Column("permission", sa.Text, primary_key=True),
     )
+    op.create_table(
+        f"{module_name}__role",
+        sa.Column("id", sa.Integer(), nullable=False, primary_key=True, index=True),
+        sa.Column("name", sa.String(length=64), nullable=False),
+        sa.Column("scope_id", sa.Integer(), nullable=False),
+        sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint("name"),
+        sa.ForeignKeyConstraint(["scope_id"], [f"{module_name}__scope.id"])
+    )
+
+    op.create_table(
+        f"{module_name}__role_permission",
+        sa.Column("id", sa.Integer(), nullable=False),
+        sa.Column("role_id", sa.Integer(), nullable=False),
+        sa.Column("permission", sa.String(length=64), nullable=True),
+        sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint("role_id", "permission"),
+        sa.ForeignKeyConstraint(["role_id"], [f"{module_name}__role.id"])
+    )
+
 
 def downgrade(module, payload):
     module_name = module.descriptor.name
@@ -214,3 +235,5 @@ def downgrade(module, payload):
     op.drop_table(f"{module_name}__group")
     op.drop_table(f"{module_name}__user_provider")
     op.drop_table(f"{module_name}__user")
+    op.drop_table(f"{module_name}__role")
+    op.drop_table(f"{module_name}__role_permission")
