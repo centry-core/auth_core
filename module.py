@@ -32,6 +32,9 @@ from pylon.core.tools import web  # pylint: disable=E0611,E0401
 from pylon.core.tools import module  # pylint: disable=E0611,E0401
 
 from pylon.core.tools.context import Context as Holder  # pylint: disable=E0611,E0401
+from sqlalchemy import select, bindparam, and_
+from sqlalchemy.dialects.postgresql import insert
+
 from sqlalchemy.orm import sessionmaker
 
 from .db import db_migrations
@@ -156,6 +159,7 @@ class Module(module.ModuleModel):
             [self.get_permissions, "auth_get_permissions"],
             [self.set_permission_for_role, "auth_set_permission_for_role"],
             [self.remove_permission_from_role, "auth_remove_permission_from_role"],
+            [self.insert_permissions, "auth_insert_permissions"],
         ]
 
     #
@@ -1536,11 +1540,11 @@ class Module(module.ModuleModel):
         return True
 
     @rpc_tools.wrap_exceptions(RuntimeError)
-    def get_roles(self, scope_id=1) -> list[str]:
+    def get_roles(self, mode="administration") -> list[str]:
         with self.db.engine.connect() as connection:
             data = connection.execute(
                 self.db.tbl.role.select().where(
-                    self.db.tbl.role.c.scope_id == scope_id,
+                    self.db.tbl.role.c.mode == mode,
                 )
             ).mappings().all()
             log.info(f"{data=}")
@@ -1548,14 +1552,14 @@ class Module(module.ModuleModel):
             db_tools.sqlalchemy_mapping_to_dict(item) for item in data
         ]
 
-    def get_permissions(self, scope_id=1):
+    def get_permissions(self, mode="administration"):
         #
         with self.db.engine.connect() as connection:
             data_1 = connection.execute(
                 self.db.tbl.role.join(
                     self.db.tbl.role_permission, isouter=True
                 ).select().where(
-                    self.db.tbl.role.c.scope_id == scope_id,
+                    self.db.tbl.role.c.mode == mode,
                 ).order_by(self.db.tbl.role.c.name)
             ).mappings().all()
         log.info(f"{data_1=}")
@@ -1563,7 +1567,7 @@ class Module(module.ModuleModel):
             db_tools.sqlalchemy_mapping_to_dict(item) for item in data_1
         ]
 
-    def get_permissions_by_role(self, role_name, scope_id=1):
+    def get_permissions_by_role(self, role_name, mode="administration"):
         #
         with self.db.engine.connect() as connection:
             data_1 = connection.execute(
@@ -1572,7 +1576,7 @@ class Module(module.ModuleModel):
                 ).select()
                 .where(
                     self.db.tbl.role.c.name == role_name,
-                    self.db.tbl.role.c.scope_id == scope_id
+                    self.db.tbl.role.c.mode == mode
                 )
                 .order_by(self.db.tbl.role.c.name)
             ).mappings().all()
@@ -1581,12 +1585,12 @@ class Module(module.ModuleModel):
             db_tools.sqlalchemy_mapping_to_dict(item) for item in data_1
         ]
 
-    def set_permission_for_role(self, role_name, permission_name, scope_id=1):
+    def set_permission_for_role(self, role_name, permission_name, mode="administration"):
         with self.db.engine.connect() as connection:
             data = connection.execute(
                 self.db.tbl.role.select().where(
                     self.db.tbl.role.c.name == role_name,
-                    self.db.tbl.role.c.scope_id == scope_id
+                    self.db.tbl.role.c.mode == mode
                 )
             ).mappings().one()
             log.info(f"{data=}")
@@ -1600,12 +1604,12 @@ class Module(module.ModuleModel):
             log.info(f"{data=}")
         return data
 
-    def remove_permission_from_role(self, role_name, permission_name, scope_id=1):
+    def remove_permission_from_role(self, role_name, permission_name, mode="administration"):
         with self.db.engine.connect() as connection:
             data = connection.execute(
                 self.db.tbl.role.select().where(
                     self.db.tbl.role.c.name == role_name,
-                    self.db.tbl.role.c.scope_id == scope_id
+                    self.db.tbl.role.c.mode == mode
                 )
             ).mappings().one()
             log.info(f"To delete in role {data=}")
@@ -1618,3 +1622,27 @@ class Module(module.ModuleModel):
             ).rowcount
             log.info(f"Deleted {data=}")
         return data
+
+    def insert_permissions(self, permissions: tuple[str, str, str]):
+        log.info(f"{permissions=}")
+        with self.db.engine.connect() as connection:
+            insert_permission = insert(self.db.tbl.role_permission).values(
+                role_id=select(self.db.tbl.role.c.id).where(
+                    and_(
+                        self.db.tbl.role.c.name == bindparam("name"),
+                        self.db.tbl.role.c.mode == bindparam("mode"))
+                ).scalar_subquery(),
+                permission=bindparam("permission")
+            ).on_conflict_do_nothing(
+                index_elements=[
+                    self.db.tbl.role_permission.c.role_id,
+                    self.db.tbl.role_permission.c.permission
+                ]
+            )
+            data = connection.execute(
+                insert_permission,
+                [{"name": name, "mode": mode, "permission": permission} for
+                 name, mode, permission in permissions]
+            )
+            log.info(f"{data=}")
+        return None

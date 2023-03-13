@@ -201,14 +201,28 @@ def upgrade(module, payload):
         ),
         sa.Column("permission", sa.Text, primary_key=True),
     )
-    op.create_table(
+    roles_table = op.create_table(
         f"{module_name}__role",
         sa.Column("id", sa.Integer(), nullable=False, primary_key=True, index=True),
         sa.Column("name", sa.String(length=64), nullable=False),
-        sa.Column("scope_id", sa.Integer(), nullable=False),
+        sa.Column("mode", sa.String(length=64), nullable=False),
         sa.PrimaryKeyConstraint("id"),
-        sa.UniqueConstraint("name"),
-        sa.ForeignKeyConstraint(["scope_id"], [f"{module_name}__scope.id"])
+        sa.UniqueConstraint("name", "mode"),
+    )
+
+    op.bulk_insert(
+        roles_table,
+        [
+            {"name": "admin", "mode": "administration"},
+            {"name": "editor", "mode": "administration"},
+            {"name": "viewer", "mode": "administration"},
+            {"name": "admin", "mode": "project"},
+            {"name": "editor", "mode": "project"},
+            {"name": "viewer", "mode": "project"},
+            {"name": "admin", "mode": "develop"},
+            {"name": "editor", "mode": "develop"},
+            {"name": "viewer", "mode": "develop"},
+        ]
     )
 
     op.create_table(
