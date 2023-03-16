@@ -235,6 +235,17 @@ def upgrade(module, payload):
         sa.ForeignKeyConstraint(["role_id"], [f"{module_name}__role.id"])
     )
 
+    op.create_table(
+        f"{module_name}__user_role",
+        sa.Column("id", sa.Integer(), nullable=False),
+        sa.Column("user_id", sa.Integer(), nullable=False),
+        sa.Column("role_id", sa.Integer(), nullable=False),
+        sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint("user_id", "role_id"),
+        sa.ForeignKeyConstraint(["user_id"], [f"{module_name}__user.id"]),
+        sa.ForeignKeyConstraint(["role_id"], [f"{module_name}__role.id"])
+    )
+
 
 def downgrade(module, payload):
     module_name = module.descriptor.name
@@ -251,3 +262,4 @@ def downgrade(module, payload):
     op.drop_table(f"{module_name}__user")
     op.drop_table(f"{module_name}__role")
     op.drop_table(f"{module_name}__role_permission")
+    op.drop_table(f"{module_name}__user_role")
