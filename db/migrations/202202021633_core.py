@@ -245,12 +245,7 @@ def upgrade(module, payload):
         sa.ForeignKeyConstraint(["user_id"], [f"{module_name}__user.id"]),
         sa.ForeignKeyConstraint(["role_id"], [f"{module_name}__role.id"])
     )
-    op.bulk_insert(
-        user_role_table,
-        [
-            {"user_id": 1, "role_id": 1},
-        ]
-    )
+
 
 def downgrade(module, payload):
     module_name = module.descriptor.name
