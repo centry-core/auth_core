@@ -32,6 +32,10 @@ from pylon.core.tools import web  # pylint: disable=E0611,E0401
 from pylon.core.tools import module  # pylint: disable=E0611,E0401
 
 from pylon.core.tools.context import Context as Holder  # pylint: disable=E0611,E0401
+from sqlalchemy import select, bindparam, and_
+from sqlalchemy.dialects.postgresql import insert
+
+from sqlalchemy.orm import sessionmaker
 
 from .db import db_migrations
 from .db import db_tools
@@ -150,6 +154,16 @@ class Module(module.ModuleModel):
             [self._resolve_token_permissions, "auth_resolve_token_permissions"],
             #
             [self._ping, "auth_ping"],
+            #
+            [self.get_roles, "auth_get_roles"],
+            [self.get_permissions, "auth_get_permissions"],
+            [self.set_permission_for_role, "auth_set_permission_for_role"],
+            [self.remove_permission_from_role, "auth_remove_permission_from_role"],
+            [self.insert_permissions, "auth_insert_permissions"],
+            [self.get_user_roles, "auth_get_user_roles"],
+            [self.add_role, "auth_add_role"],
+            [self.delete_role, "auth_delete_role"],
+            [self.update_role_name, "auth_update_role_name"],
         ]
 
     #
@@ -167,6 +181,7 @@ class Module(module.ModuleModel):
         self.db.engine = sqlalchemy.create_engine(
             self.db.url, **self.db.options
         )
+        self.db.session = sessionmaker(bind=self.db.engine)()
         self.db.metadata = sqlalchemy.MetaData()
         #
         self.db.tbl.user = sqlalchemy.Table(
@@ -207,6 +222,18 @@ class Module(module.ModuleModel):
         )
         self.db.tbl.token_permission = sqlalchemy.Table(
             f"{module_name}__token_permission", self.db.metadata,
+            autoload_with=self.db.engine,
+        )
+        self.db.tbl.role = sqlalchemy.Table(
+            f"{module_name}__role", self.db.metadata,
+            autoload_with=self.db.engine,
+        )
+        self.db.tbl.role_permission = sqlalchemy.Table(
+            f"{module_name}__role_permission", self.db.metadata,
+            autoload_with=self.db.engine,
+        )
+        self.db.tbl.user_role = sqlalchemy.Table(
+            f"{module_name}__user_role", self.db.metadata,
             autoload_with=self.db.engine,
         )
         # Init Blueprint
@@ -328,9 +355,9 @@ class Module(module.ModuleModel):
             #
             try:
                 auth_type, auth_id, auth_reference = \
-                self.credential_handlers[credential_type](
-                    source, credential_data
-                )
+                    self.credential_handlers[credential_type](
+                        source, credential_data
+                    )
             except:
                 # Bad credential
                 return self.access_denied_reply(source)
@@ -342,8 +369,8 @@ class Module(module.ModuleModel):
         auth_ctx = self.get_auth_context()
         if auth_ctx["done"] and \
                 (
-                    auth_ctx["expiration"] is None or
-                    datetime.datetime.now() < auth_ctx["expiration"]
+                        auth_ctx["expiration"] is None or
+                        datetime.datetime.now() < auth_ctx["expiration"]
                 ):
             # Auth done
             return self.access_success_reply(
@@ -480,7 +507,7 @@ class Module(module.ModuleModel):
     def access_success_reply(
             self, source,
             auth_type, auth_id="-", auth_reference="-",
-        ):
+    ):
         """ Traefik: auth OK reply """
         auth_target = source["target"]
         if auth_target not in self.success_mappers:
@@ -1001,7 +1028,7 @@ class Module(module.ModuleModel):
     @rpc_tools.wrap_exceptions(RuntimeError)
     def _walk_group_tree(self, id):
         groups = self._list_groups()
-        group_map = {item["id"]:item for item in groups}
+        group_map = {item["id"]: item for item in groups}
         #
         result = list()
         #
@@ -1185,7 +1212,7 @@ class Module(module.ModuleModel):
     @rpc_tools.wrap_exceptions(RuntimeError)
     def _walk_scope_tree(self, id):
         scopes = self._list_scopes()
-        scope_map = {item["id"]:item for item in scopes}
+        scope_map = {item["id"]: item for item in scopes}
         #
         result = list()
         #
@@ -1519,3 +1546,162 @@ class Module(module.ModuleModel):
     def _ping(self):
         _ = self
         return True
+
+    @rpc_tools.wrap_exceptions(RuntimeError)
+    def get_roles(self, mode="administration") -> list[str]:
+        with self.db.engine.connect() as connection:
+            data = connection.execute(
+                self.db.tbl.role.select().where(
+                    self.db.tbl.role.c.mode == mode,
+                ).order_by(
+                    self.db.tbl.role.c.id
+                )
+            ).mappings().all()
+            log.info(f"{data=}")
+        return [
+            db_tools.sqlalchemy_mapping_to_dict(item) for item in data
+        ]
+
+    @rpc_tools.wrap_exceptions(RuntimeError)
+    def add_role(self, name, mode="administration"):
+        with self.db.engine.connect() as connection:
+            return connection.execute(
+                self.db.tbl.role.insert().values(
+                    name=name,
+                    mode=mode,
+                )
+            ).inserted_primary_key[0]
+
+    @rpc_tools.wrap_exceptions(RuntimeError)
+    def delete_role(self, name, mode="administration"):
+        with self.db.engine.connect() as connection:
+            return connection.execute(
+                self.db.tbl.role.delete().where(
+                    self.db.tbl.role.c.name == name,
+                    self.db.tbl.role.c.mode == mode,
+                )
+            ).rowcount
+
+    @rpc_tools.wrap_exceptions(RuntimeError)
+    def update_role_name(self, old_name, new_name, mode="administration"):
+        with self.db.engine.connect() as connection:
+            data = connection.execute(
+                self.db.tbl.role.update().where(
+                    self.db.tbl.role.c.name == old_name,
+                    self.db.tbl.role.c.mode == mode,
+                ).values(
+                    name=new_name,
+                )
+            ).rowcount
+        return data
+
+    def get_permissions(self, mode="administration"):
+        #
+        with self.db.engine.connect() as connection:
+            data_1 = connection.execute(
+                self.db.tbl.role.join(
+                    self.db.tbl.role_permission, isouter=True
+                ).select().where(
+                    self.db.tbl.role.c.mode == mode,
+                ).order_by(self.db.tbl.role.c.name)
+            ).mappings().all()
+        return [
+            db_tools.sqlalchemy_mapping_to_dict(item) for item in data_1
+        ]
+
+    def get_permissions_by_role(self, role_name, mode="administration"):
+        #
+        with self.db.engine.connect() as connection:
+            data_1 = connection.execute(
+                self.db.tbl.role.join(
+                    self.db.tbl.role_permission, isouter=True
+                ).select()
+                .where(
+                    self.db.tbl.role.c.name == role_name,
+                    self.db.tbl.role.c.mode == mode
+                )
+                .order_by(self.db.tbl.role.c.name)
+            ).mappings().all()
+        return [
+            db_tools.sqlalchemy_mapping_to_dict(item) for item in data_1
+        ]
+
+    def set_permission_for_role(self, role_name, permission_name, mode="administration"):
+        with self.db.engine.connect() as connection:
+            data = connection.execute(
+                self.db.tbl.role.select().where(
+                    self.db.tbl.role.c.name == role_name,
+                    self.db.tbl.role.c.mode == mode
+                )
+            ).mappings().one()
+            log.info(f"{data=}")
+            role_id = data["id"]
+            data = connection.execute(
+                self.db.tbl.role_permission.insert().values(
+                    role_id=role_id,
+                    permission=permission_name,
+                )
+            ).inserted_primary_key[0]
+        return data
+
+    def remove_permission_from_role(self, role_name, permission_name, mode="administration"):
+        with self.db.engine.connect() as connection:
+            data = connection.execute(
+                self.db.tbl.role.select().where(
+                    self.db.tbl.role.c.name == role_name,
+                    self.db.tbl.role.c.mode == mode
+                )
+            ).mappings().one()
+            log.info(f"To delete in role {data=}")
+            role_id = data["id"]
+            data = connection.execute(
+                self.db.tbl.role_permission.delete().where(
+                    self.db.tbl.role_permission.c.role_id == role_id,
+                    self.db.tbl.role_permission.c.permission == permission_name,
+                )
+            ).rowcount
+        return data
+
+    def insert_permissions(self, permissions: tuple[str, str, str]):
+        log.info(f"{permissions=}")
+        with self.db.engine.connect() as connection:
+            insert_permission = insert(self.db.tbl.role_permission).values(
+                role_id=select(self.db.tbl.role.c.id).where(
+                    and_(
+                        self.db.tbl.role.c.name == bindparam("name"),
+                        self.db.tbl.role.c.mode == bindparam("mode"))
+                ).scalar_subquery(),
+                permission=bindparam("permission")
+            ).on_conflict_do_nothing(
+                index_elements=[
+                    self.db.tbl.role_permission.c.role_id,
+                    self.db.tbl.role_permission.c.permission
+                ]
+            )
+            connection.execute(
+                insert_permission,
+                [{"name": name, "mode": mode, "permission": permission} for
+                 name, mode, permission in permissions]
+            )
+
+        return None
+
+    def get_user_roles(self, user_id, mode='administration'):
+        log.info(f"{user_id=}")
+
+        with self.db.engine.connect() as connection:
+            data = connection.execute(
+                self.db.tbl.user_role.join(
+                    self.db.tbl.role, isouter=True
+                ).join(
+                    self.db.tbl.role_permission, isouter=True
+                ).select().where(
+                    self.db.tbl.user_role.c.user_id == user_id,
+                    self.db.tbl.role.c.mode == str(mode),
+                ).order_by(self.db.tbl.role.c.name)
+            ).mappings().all()
+            result = [
+                db_tools.sqlalchemy_mapping_to_dict(item) for item in data
+            ]
+            log.info(f"{result=}")
+            return result
