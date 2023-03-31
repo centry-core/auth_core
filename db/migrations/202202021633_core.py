@@ -222,6 +222,9 @@ def upgrade(module, payload):
             {"name": "admin", "mode": "developer"},
             {"name": "editor", "mode": "developer"},
             {"name": "viewer", "mode": "developer"},
+            {"name": "admin", "mode": "default"},
+            {"name": "editor", "mode": "default"},
+            {"name": "viewer", "mode": "default"},
         ]
     )
 

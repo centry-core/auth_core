@@ -164,6 +164,7 @@ class Module(module.ModuleModel):
             [self.add_role, "auth_add_role"],
             [self.delete_role, "auth_delete_role"],
             [self.update_role_name, "auth_update_role_name"],
+            [self.assign_user_to_role, "auth_assign_user_to_role"],
         ]
 
     #
@@ -1575,12 +1576,27 @@ class Module(module.ModuleModel):
     @rpc_tools.wrap_exceptions(RuntimeError)
     def delete_role(self, name, mode="administration"):
         with self.db.engine.connect() as connection:
-            return connection.execute(
-                self.db.tbl.role.delete().where(
+            role_id = connection.execute(
+                self.db.tbl.role.select().where(
                     self.db.tbl.role.c.name == name,
                     self.db.tbl.role.c.mode == mode,
                 )
-            ).rowcount
+            ).mappings().first()["id"]
+            connection.execute(
+                self.db.tbl.user_role.delete().where(
+                    self.db.tbl.user_role.c.role_id == role_id,
+                )
+            )
+            connection.execute(
+                self.db.tbl.role_permission.delete().where(
+                    self.db.tbl.role_permission.c.role_id == role_id,
+                )
+            )
+            connection.execute(
+                self.db.tbl.role.delete().where(
+                    self.db.tbl.role.c.id == role_id,
+                )
+            )
 
     @rpc_tools.wrap_exceptions(RuntimeError)
     def update_role_name(self, old_name, new_name, mode="administration"):
@@ -1594,6 +1610,21 @@ class Module(module.ModuleModel):
                 )
             ).rowcount
         return data
+
+    def assign_user_to_role(self, user_id, role_name, mode="administration"):
+        with self.db.engine.connect() as connection:
+            role_id = connection.execute(
+                self.db.tbl.role.select().where(
+                    self.db.tbl.role.c.name == role_name,
+                    self.db.tbl.role.c.mode == mode,
+                )
+            ).mappings().first()["id"]
+            return connection.execute(
+                self.db.tbl.user_role.insert().values(
+                    user_id=user_id,
+                    role_id=role_id,
+                )
+            ).inserted_primary_key[0]
 
     def get_permissions(self, mode="administration"):
         #
