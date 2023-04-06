@@ -1694,7 +1694,7 @@ class Module(module.ModuleModel):
         return data
 
     def insert_permissions(self, permissions: tuple[str, str, str]):
-        log.info(f"{permissions=}")
+        # log.info(f"{permissions=}")
         with self.db.engine.connect() as connection:
             insert_permission = insert(self.db.tbl.role_permission).values(
                 role_id=select(self.db.tbl.role.c.id).where(
