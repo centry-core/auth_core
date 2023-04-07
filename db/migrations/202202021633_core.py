@@ -32,7 +32,7 @@ def upgrade(module, payload):
         f"{module_name}__user",
         sa.Column("id", sa.Integer, primary_key=True, index=True),
         sa.Column("email", sa.Text, index=True, unique=True),
-        sa.Column("name", sa.Text, index=True),
+        sa.Column("name", sa.Text, index=True, nullable=True),
     )
     #
     op.create_table(

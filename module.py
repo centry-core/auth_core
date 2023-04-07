@@ -22,6 +22,7 @@ import uuid
 import urllib
 import base64
 import datetime
+from typing import Optional
 
 import jwt  # pylint: disable=E0401
 import flask  # pylint: disable=E0401
@@ -863,15 +864,15 @@ class Module(module.ModuleModel):
     #
 
     @rpc_tools.wrap_exceptions(RuntimeError)
-    def _add_user(self, email="", name="", id=...):
+    def _add_user(self, email: str, name: Optional[str] = '', id_: Optional[int] = None):
         values = {
             "email": email,
-            "name": name,
         }
-        #
-        if id is not ...:
-            values["id"] = id
-        #
+        if name:
+            values['name'] = name
+        if id_:
+            values["id"] = id_
+
         with self.db.engine.connect() as connection:
             return connection.execute(
                 self.db.tbl.user.insert().values(**values)
@@ -931,7 +932,7 @@ class Module(module.ModuleModel):
     #
 
     @rpc_tools.wrap_exceptions(RuntimeError)
-    def _add_user_provider(self, user_id, provider_ref):
+    def _add_user_provider(self, user_id: int, provider_ref: str) -> int:
         with self.db.engine.connect() as connection:
             return connection.execute(
                 self.db.tbl.user_provider.insert().values(
