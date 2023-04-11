@@ -895,8 +895,12 @@ class Module(module.ModuleModel):
             return connection.execute(
                 self.db.tbl.user.update().where(
                     self.db.tbl.user.c.id == id_
-                    ).values(**values)
-            ).rowcount
+                    ).values(**values
+                        ).returning(
+                            self.db.tbl.user.c.id, 
+                            self.db.tbl.user.c.name
+                            )
+            ).first() 
 
     @rpc_tools.wrap_exceptions(RuntimeError)
     def _delete_user(self, id):
