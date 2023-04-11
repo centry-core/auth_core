@@ -99,6 +99,7 @@ class Module(module.ModuleModel):
             [self._remove_public_rule, "auth_remove_public_rule"],
             #
             [self._add_user, "auth_add_user"],
+            [self._update_user, "auth_update_user"],
             [self._delete_user, "auth_delete_user"],
             [self._get_user, "auth_get_user"],
             [self._list_users, "auth_list_users"],
@@ -877,6 +878,25 @@ class Module(module.ModuleModel):
             return connection.execute(
                 self.db.tbl.user.insert().values(**values)
             ).inserted_primary_key[0]
+            
+    @rpc_tools.wrap_exceptions(RuntimeError)
+    def _update_user(
+        self, 
+        id_: int, 
+        name: Optional[str] = '', 
+        last_login: Optional[datetime.datetime] = None
+        ):
+        values = {}
+        if name:
+            values['name'] = name
+        if last_login:
+            values["last_login"] = last_login
+        with self.db.engine.connect() as connection:
+            return connection.execute(
+                self.db.tbl.user.update().where(
+                    self.db.tbl.user.c.id == id_
+                    ).values(**values)
+            ).rowcount
 
     @rpc_tools.wrap_exceptions(RuntimeError)
     def _delete_user(self, id):
