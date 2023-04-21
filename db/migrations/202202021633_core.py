@@ -182,26 +182,6 @@ def upgrade(module, payload):
         sa.Column("name", sa.Text),
     )
     #
-    op.create_table(
-        f"{module_name}__token_permission",
-        sa.Column(
-            "token_id", sa.Integer,
-            sa.ForeignKey(
-                f"{module_name}__token.id",
-                onupdate="CASCADE", ondelete="CASCADE"
-            ),
-            primary_key=True, index=True,
-        ),
-        sa.Column(
-            "scope_id", sa.Integer,
-            sa.ForeignKey(
-                f"{module_name}__scope.id",
-                onupdate="CASCADE", ondelete="CASCADE"
-            ),
-            primary_key=True, index=True,
-        ),
-        sa.Column("permission", sa.Text, primary_key=True),
-    )
     roles_table = op.create_table(
         f"{module_name}__role",
         sa.Column("id", sa.Integer(), nullable=False, primary_key=True, index=True),
@@ -224,6 +204,26 @@ def upgrade(module, payload):
             {"name": "editor", "mode": "default"},
             {"name": "viewer", "mode": "default"},
         ]
+    )
+
+    op.create_table(
+        f"{module_name}__token_role",
+        sa.Column(
+            "token_id", sa.Integer,
+            sa.ForeignKey(
+                f"{module_name}__token.id",
+                onupdate="CASCADE", ondelete="CASCADE"
+            ),
+            primary_key=True, index=True,
+        ),
+        sa.Column(
+            "role_id", sa.Integer,
+            sa.ForeignKey(
+                f"{module_name}__role.id",
+                onupdate="CASCADE", ondelete="CASCADE"
+            ),
+            primary_key=True, index=True,
+        ),
     )
 
     op.create_table(
