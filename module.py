@@ -1790,5 +1790,3 @@ class Module(module.ModuleModel):
             ]
             log.info(f"user permissions {result=}")
             return {item['permission'] for item in result}
-
-    # TODO: Переделать что бы токен брал пермишены через роли и все такое
