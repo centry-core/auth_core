@@ -1461,7 +1461,7 @@ class Module(module.ModuleModel):
     #
 
     @rpc_tools.wrap_exceptions(RuntimeError)
-    def _get_token_permissions(self, token_id):
+    def _get_token_permissions(self, token_id, *args, **kwargs):
         token = self._get_token(token_id)
         #
         token_user = token["user_id"]
