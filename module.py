@@ -149,13 +149,7 @@ class Module(module.ModuleModel):
             [self._encode_token, "auth_encode_token"],
             [self._decode_token, "auth_decode_token"],
             #
-            [self._assign_role_to_token, "auth_assign_role_to_token"],
-            [self._unassign_role_from_token, "auth_unassign_role_from_token"],
-            [self._add_token_permission, "auth_add_token_permission"],
-            [self._remove_token_permission, "auth_remove_token_permission"],
             [self._get_token_permissions, "auth_get_token_permissions"],
-            [self._list_token_permissions, "auth_list_token_permissions"],
-            [self._resolve_token_permissions, "auth_resolve_token_permissions"],
             #
             [self._ping, "auth_ping"],
             #
@@ -223,10 +217,6 @@ class Module(module.ModuleModel):
         )
         self.db.tbl.token = sqlalchemy.Table(
             f"{module_name}__token", self.db.metadata,
-            autoload_with=self.db.engine,
-        )
-        self.db.tbl.token_role = sqlalchemy.Table(
-            f"{module_name}__token_role", self.db.metadata,
             autoload_with=self.db.engine,
         )
         self.db.tbl.role = sqlalchemy.Table(
@@ -1471,109 +1461,13 @@ class Module(module.ModuleModel):
     #
 
     @rpc_tools.wrap_exceptions(RuntimeError)
-    def _add_token_permission(self, token_id, scope_id, permission):
-        with self.db.engine.connect() as connection:
-            return connection.execute(
-                self.db.tbl.token_permission.insert().values(
-                    token_id=token_id,
-                    scope_id=scope_id,
-                    permission=permission,
-                )
-            ).inserted_primary_key[0]
-
-    @rpc_tools.wrap_exceptions(RuntimeError)
-    def _assign_role_to_token(self, token_id: int, role_name: str, mode="administration"):
-        with self.db.engine.connect() as connection:
-            role_id = connection.execute(
-                self.db.tbl.role.select().where(
-                    self.db.tbl.role.c.name == role_name,
-                    self.db.tbl.role.c.mode == mode,
-                )
-            ).mappings().first()["id"]
-            return connection.execute(
-                self.db.tbl.token_role.insert().values(
-                    token_id=token_id,
-                    role_id=role_id,
-                )
-            ).inserted_primary_key[0]
-
-    @rpc_tools.wrap_exceptions(RuntimeError)
-    def _unassign_role_from_token(self, token_id: int, role_name: str, mode="administration"):
-        with self.db.engine.connect() as connection:
-            role_id = connection.execute(
-                self.db.tbl.role.select().where(
-                    self.db.tbl.role.c.name == role_name,
-                    self.db.tbl.role.c.mode == mode,
-                )
-            ).mappings().first()["id"]
-            return connection.execute(
-                self.db.tbl.token_role.delete().where(
-                    self.db.tbl.token_role.c.token_id == token_id,
-                    self.db.tbl.token_role.c.role_id == role_id,
-                )
-            ).rowcount
-
-    @rpc_tools.wrap_exceptions(RuntimeError)
-    def _remove_token_permission(self, token_id, scope_id, permission):
-        with self.db.engine.connect() as connection:
-            return connection.execute(
-                self.db.tbl.token_permission.delete().where(
-                    self.db.tbl.token_permission.c.token_id == token_id,
-                    self.db.tbl.token_permission.c.scope_id == scope_id,
-                    self.db.tbl.token_permission.c.permission == permission,
-                )
-            ).rowcount
-
-    @rpc_tools.wrap_exceptions(RuntimeError)
-    def _get_token_permissions(self, token_id, scope_id):
+    def _get_token_permissions(self, token_id):
         token = self._get_token(token_id)
         #
-        with self.db.engine.connect() as connection:
-            token_roles = connection.execute(
-                self.db.tbl.token_role.select().where(
-                    self.db.tbl.token_role.c.token_id == token_id,
-                )
-            ).mappings().all()
-            token_permissions = connection.execute(
-                self.db.tbl.role_permission.select().where(
-                    self.db.tbl.role_permission.c.role_id.in_(
-                        [item["role_id"] for item in token_roles]
-                    ),
-                )
-            ).mappings().all()
-
-        #
-        log.info("Token roles: %s", token_roles)
-        #
-        result = set([item["permission"] for item in token_permissions])
-        result = list(result)
-        result.sort()
-        log.info("Token permissions: %s", result)
-        #
-        return result
-
-    @rpc_tools.wrap_exceptions(RuntimeError)
-    def _list_token_permissions(self, token_id=None):
-        with self.db.engine.connect() as connection:
-            if token_id is not None:
-                permissions = connection.execute(
-                    self.db.tbl.token_permission.select().where(
-                        self.db.tbl.token_permission.c.token_id == token_id,
-                    )
-                ).mappings().all()
-            else:
-                permissions = connection.execute(
-                    self.db.tbl.token_permission.select()
-                ).mappings().all()
-        #
-        return [
-            db_tools.sqlalchemy_mapping_to_dict(item) for item in permissions
-        ]
-
-    @rpc_tools.wrap_exceptions(RuntimeError)
-    def _resolve_token_permissions(self, token, scope_id):
-        token = self._decode_token(token)
-        return self._get_token_permissions(token["id"], scope_id)
+        token_user = token["user_id"]
+        log.info("Token : %s", token)
+        user_permissions = self.get_user_permissions(token_user)
+        return user_permissions
 
     #
     # RPC: ping
@@ -1730,7 +1624,6 @@ class Module(module.ModuleModel):
         return data
 
     def insert_permissions(self, permissions: tuple[str, str, str]):
-        log.info(f"{permissions=}")
         with self.db.engine.connect() as connection:
             insert_permission = insert(self.db.tbl.role_permission).values(
                 role_id=select(self.db.tbl.role.c.id).where(
@@ -1750,7 +1643,6 @@ class Module(module.ModuleModel):
                 [{"name": name, "mode": mode, "permission": permission} for
                  name, mode, permission in permissions]
             )
-
         return None
 
     def get_user_roles(self, user_id, mode='administration'):

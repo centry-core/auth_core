@@ -194,36 +194,19 @@ def upgrade(module, payload):
     op.bulk_insert(
         roles_table,
         [
+            {"name": "system", "mode": "administration"},
             {"name": "admin", "mode": "administration"},
             {"name": "editor", "mode": "administration"},
             {"name": "viewer", "mode": "administration"},
+            {"name": "system", "mode": "developer"},
             {"name": "admin", "mode": "developer"},
             {"name": "editor", "mode": "developer"},
             {"name": "viewer", "mode": "developer"},
+            {"name": "system", "mode": "default"},
             {"name": "admin", "mode": "default"},
             {"name": "editor", "mode": "default"},
             {"name": "viewer", "mode": "default"},
         ]
-    )
-
-    op.create_table(
-        f"{module_name}__token_role",
-        sa.Column(
-            "token_id", sa.Integer,
-            sa.ForeignKey(
-                f"{module_name}__token.id",
-                onupdate="CASCADE", ondelete="CASCADE"
-            ),
-            primary_key=True, index=True,
-        ),
-        sa.Column(
-            "role_id", sa.Integer,
-            sa.ForeignKey(
-                f"{module_name}__role.id",
-                onupdate="CASCADE", ondelete="CASCADE"
-            ),
-            primary_key=True, index=True,
-        ),
     )
 
     op.create_table(
@@ -252,7 +235,6 @@ def downgrade(module, payload):
     module_name = module.descriptor.name
 
     #
-    op.drop_table(f"{module_name}__token_permission")
     op.drop_table(f"{module_name}__token")
     op.drop_table(f"{module_name}__group_permission")
     op.drop_table(f"{module_name}__user_permission")
