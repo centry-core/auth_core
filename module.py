@@ -978,7 +978,7 @@ class Module(module.ModuleModel):
                 )
             ).mappings().one()
         #
-        return self._get_user(id=user_provider["user_id"])
+        return self._get_user(user_provider["user_id"])
 
     @rpc_tools.wrap_exceptions(RuntimeError)
     def _list_user_providers(self, user_id=None):
