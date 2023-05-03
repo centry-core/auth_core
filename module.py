@@ -895,21 +895,23 @@ class Module(module.ModuleModel):
             ).first()
 
     @rpc_tools.wrap_exceptions(RuntimeError)
-    def _delete_user(self, id):
+    def _delete_user(self, user_id: int):
         with self.db.engine.connect() as connection:
             return connection.execute(
                 self.db.tbl.user.delete().where(
-                    self.db.tbl.user.c.id == id
+                    self.db.tbl.user.c.id == user_id
                 )
             ).rowcount
 
     @rpc_tools.wrap_exceptions(RuntimeError)
-    def _get_user(self, id=None, email=None, name=None):
-        if id is not None:
+    def _get_user(self, user_id: Optional[int] = None,
+                  email: Optional[str] = None,
+                  name: Optional[str] = None):
+        if user_id is not None:
             with self.db.engine.connect() as connection:
                 user = connection.execute(
                     self.db.tbl.user.select().where(
-                        self.db.tbl.user.c.id == id,
+                        self.db.tbl.user.c.id == user_id,
                     )
                 ).mappings().one()
             return db_tools.sqlalchemy_mapping_to_dict(user)
@@ -1044,13 +1046,13 @@ class Module(module.ModuleModel):
         return [db_tools.sqlalchemy_mapping_to_dict(item) for item in groups]
 
     @rpc_tools.wrap_exceptions(RuntimeError)
-    def _walk_group_tree(self, id):
+    def _walk_group_tree(self, group_id: int):
         groups = self._list_groups()
         group_map = {item["id"]: item for item in groups}
         #
         result = list()
         #
-        current_id = id
+        current_id = group_id
         while True:
             if current_id not in group_map:
                 break
@@ -1185,14 +1187,14 @@ class Module(module.ModuleModel):
     #
 
     @rpc_tools.wrap_exceptions(RuntimeError)
-    def _add_scope(self, name="", parent_id=None, id=...):
+    def _add_scope(self, name="", parent_id=None, scope_id=...):
         values = {
             "name": name,
             "parent_id": parent_id,
         }
         #
-        if id is not ...:
-            values["id"] = id
+        if scope_id is not ...:
+            values["id"] = scope_id
         #
         with self.db.engine.connect() as connection:
             return connection.execute(
@@ -1200,20 +1202,20 @@ class Module(module.ModuleModel):
             ).inserted_primary_key[0]
 
     @rpc_tools.wrap_exceptions(RuntimeError)
-    def _delete_scope(self, id):
+    def _delete_scope(self, scope_id):
         with self.db.engine.connect() as connection:
             return connection.execute(
                 self.db.tbl.scope.delete().where(
-                    self.db.tbl.scope.c.id == id
+                    self.db.tbl.scope.c.id == scope_id
                 )
             ).rowcount
 
     @rpc_tools.wrap_exceptions(RuntimeError)
-    def _get_scope(self, id):
+    def _get_scope(self, scope_id):
         with self.db.engine.connect() as connection:
             scope = connection.execute(
                 self.db.tbl.scope.select().where(
-                    self.db.tbl.scope.c.id == id,
+                    self.db.tbl.scope.c.id == scope_id,
                 )
             ).mappings().one()
         return db_tools.sqlalchemy_mapping_to_dict(scope)
@@ -1228,13 +1230,13 @@ class Module(module.ModuleModel):
         return [db_tools.sqlalchemy_mapping_to_dict(item) for item in scopes]
 
     @rpc_tools.wrap_exceptions(RuntimeError)
-    def _walk_scope_tree(self, id):
+    def _walk_scope_tree(self, scope_id):
         scopes = self._list_scopes()
         scope_map = {item["id"]: item for item in scopes}
         #
         result = list()
         #
-        current_id = id
+        current_id = scope_id
         while True:
             if current_id not in scope_map:
                 break
@@ -1361,7 +1363,7 @@ class Module(module.ModuleModel):
     #
 
     @rpc_tools.wrap_exceptions(RuntimeError)
-    def _add_token(self, user_id, name="", expires=None, id=...):
+    def _add_token(self, user_id, name="", expires=None, token_id=...):
         token_uuid = str(uuid.uuid4())
         #
         values = {
@@ -1371,8 +1373,8 @@ class Module(module.ModuleModel):
             "name": name,
         }
         #
-        if id is not ...:
-            values["id"] = id
+        if token_id is not ...:
+            values["id"] = token_id
         #
         #
         with self.db.engine.connect() as connection:
@@ -1381,21 +1383,21 @@ class Module(module.ModuleModel):
             ).inserted_primary_key[0]
 
     @rpc_tools.wrap_exceptions(RuntimeError)
-    def _delete_token(self, id):
+    def _delete_token(self, token_id: int):
         with self.db.engine.connect() as connection:
             return connection.execute(
                 self.db.tbl.token.delete().where(
-                    self.db.tbl.token.c.id == id
+                    self.db.tbl.token.c.id == token_id
                 )
             ).rowcount
 
     @rpc_tools.wrap_exceptions(RuntimeError)
-    def _get_token(self, id=None, uuid=None):
-        if id is not None:
+    def _get_token(self, token_id=None, uuid=None):
+        if token_id is not None:
             with self.db.engine.connect() as connection:
                 token = connection.execute(
                     self.db.tbl.token.select().where(
-                        self.db.tbl.token.c.id == id,
+                        self.db.tbl.token.c.id == token_id,
                     )
                 ).mappings().one()
             return db_tools.sqlalchemy_mapping_to_dict(token)
@@ -1430,9 +1432,9 @@ class Module(module.ModuleModel):
         ]
 
     @rpc_tools.wrap_exceptions(RuntimeError)
-    def _encode_token(self, id=None, uuid=None):
-        if id is not None:
-            token = self._get_token(id)
+    def _encode_token(self, token_id=None, uuid=None):
+        if token_id is not None:
+            token = self._get_token(token_id)
             token_uuid = token["uuid"]
         elif uuid is not None:
             token_uuid = uuid
