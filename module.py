@@ -1392,7 +1392,7 @@ class Module(module.ModuleModel):
             ).rowcount
 
     @rpc_tools.wrap_exceptions(RuntimeError)
-    def _get_token(self, token_id=None, uuid=None):
+    def _get_token(self, token_id: Optional[int] = None, uuid: Optional[str] = None):
         if token_id is not None:
             with self.db.engine.connect() as connection:
                 token = connection.execute(
@@ -1414,7 +1414,7 @@ class Module(module.ModuleModel):
         raise ValueError("ID or UUID or name is not provided")
 
     @rpc_tools.wrap_exceptions(RuntimeError)
-    def _list_tokens(self, user_id=None):
+    def _list_tokens(self, user_id: Optional[int] = None):
         with self.db.engine.connect() as connection:
             if user_id is not None:
                 tokens = connection.execute(
