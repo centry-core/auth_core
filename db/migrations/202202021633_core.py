@@ -216,7 +216,7 @@ def upgrade(module, payload):
         sa.Column("permission", sa.String(length=64), nullable=True),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("role_id", "permission"),
-        sa.ForeignKeyConstraint(["role_id"], [f"{module_name}__role.id"])
+        sa.ForeignKeyConstraint(["role_id"], [f"{module_name}__role.id"], ondelete='CASCADE')
     )
 
     user_role_table = op.create_table(
@@ -226,8 +226,8 @@ def upgrade(module, payload):
         sa.Column("role_id", sa.Integer(), nullable=False),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("user_id", "role_id"),
-        sa.ForeignKeyConstraint(["user_id"], [f"{module_name}__user.id"]),
-        sa.ForeignKeyConstraint(["role_id"], [f"{module_name}__role.id"])
+        sa.ForeignKeyConstraint(["user_id"], [f"{module_name}__user.id"], ondelete='CASCADE'),
+        sa.ForeignKeyConstraint(["role_id"], [f"{module_name}__role.id"], ondelete='CASCADE')
     )
 
 
