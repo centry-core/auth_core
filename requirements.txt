@@ -1,2 +1,2 @@
-alembic==1.9.2
-PyJWT==2.6.0
+alembic==1.11.1
+PyJWT==2.7.0
