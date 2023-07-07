@@ -1490,7 +1490,7 @@ class Module(module.ModuleModel):
                     self.db.tbl.role.c.id
                 )
             ).mappings().all()
-            log.info(f"{data=}")
+            # log.info(f"{data=}")
         return [
             db_tools.sqlalchemy_mapping_to_dict(item) for item in data
         ]
@@ -1597,7 +1597,7 @@ class Module(module.ModuleModel):
                     self.db.tbl.role.c.mode == mode
                 )
             ).mappings().one()
-            log.info(f"{data=}")
+            # log.info(f"{data=}")
             role_id = data["id"]
             data = connection.execute(
                 self.db.tbl.role_permission.insert().values(
@@ -1615,7 +1615,7 @@ class Module(module.ModuleModel):
                     self.db.tbl.role.c.mode == mode
                 )
             ).mappings().one()
-            log.info(f"To delete in role {data=}")
+            # log.info(f"To delete in role {data=}")
             role_id = data["id"]
             data = connection.execute(
                 self.db.tbl.role_permission.delete().where(
@@ -1648,7 +1648,7 @@ class Module(module.ModuleModel):
         return None
 
     def get_user_roles(self, user_id, mode='administration'):
-        log.info(f"{user_id=}")
+        # log.info(f"{user_id=}")
 
         with self.db.engine.connect() as connection:
             data = connection.execute(
@@ -1662,11 +1662,11 @@ class Module(module.ModuleModel):
             result = [
                 db_tools.sqlalchemy_mapping_to_dict(item) for item in data
             ]
-            log.info(f"user roles {result=}")
+            # log.info(f"user roles {result=}")
             return {item['name'] for item in result}
 
     def get_user_permissions(self, user_id, mode='administration'):
-        log.info(f"{user_id=}")
+        # log.info(f"{user_id=}")
 
         with self.db.engine.connect() as connection:
             data = connection.execute(
@@ -1682,5 +1682,5 @@ class Module(module.ModuleModel):
             result = [
                 db_tools.sqlalchemy_mapping_to_dict(item) for item in data
             ]
-            log.info(f"user permissions {result=}")
+            # log.info(f"user permissions {result=}")
             return {item['permission'] for item in result}
