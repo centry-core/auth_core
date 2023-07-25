@@ -1432,7 +1432,7 @@ class Module(module.ModuleModel):
         ]
 
     @rpc_tools.wrap_exceptions(RuntimeError)
-    def _encode_token(self, token_id=None, uuid=None):
+    def _encode_token(self, token_id: Optional[int] = None, uuid: Optional[str] = None):
         if token_id is not None:
             token = self._get_token(token_id)
             token_uuid = token["uuid"]
@@ -1463,12 +1463,23 @@ class Module(module.ModuleModel):
     #
 
     @rpc_tools.wrap_exceptions(RuntimeError)
-    def _get_token_permissions(self, token_id, *args, **kwargs):
-        token = self._get_token(token_id)
-        #
+    # @cachetools.cached(cache=cachetools.TTLCache(maxsize=1024, ttl=60))
+    def _get_token_permissions(self, token_id: int,
+                               mode: str = 'administration',
+                               project_id: Optional[int] = None,
+                               *args, **kwargs) -> set:
+        token = self._get_token(token_id=token_id)
         token_user = token["user_id"]
-        log.info("Token : %s", token)
-        user_permissions = self.get_user_permissions(token_user)
+        self._update_user(token_user, last_login=datetime.datetime.utcnow())
+        # log.info("Token : %s", token)
+        # log.info("Token mode: %s", mode)
+        # log.info("Token project_id: %s", project_id)
+        user_permissions = self.get_user_permissions(
+            user_id=token_user,
+            mode=mode,
+            project_id=project_id
+        )
+        # log.info("Token user_permissions: %s", user_permissions)
         return user_permissions
 
     #
@@ -1543,20 +1554,35 @@ class Module(module.ModuleModel):
             ).rowcount
         return data
 
-    def assign_user_to_role(self, user_id, role_name, mode="administration"):
-        with self.db.engine.connect() as connection:
-            role_id = connection.execute(
-                self.db.tbl.role.select().where(
-                    self.db.tbl.role.c.name == role_name,
-                    self.db.tbl.role.c.mode == mode,
-                )
-            ).mappings().first()["id"]
-            return connection.execute(
-                self.db.tbl.user_role.insert().values(
+    def assign_user_to_role(self,
+                            user_id: int,
+                            role_name: str,
+                            mode: str = 'administration',
+                            project_id: Optional[int] = None) -> None:
+        match mode:
+            case 'administration':
+                with self.db.engine.connect() as connection:
+                    role_id = connection.execute(
+                        self.db.tbl.role.select().where(
+                            self.db.tbl.role.c.name == role_name,
+                            self.db.tbl.role.c.mode == mode,
+                        )
+                    ).mappings().first()['id']
+                    connection.execute(
+                        self.db.tbl.user_role.insert().values(
+                            user_id=user_id,
+                            role_id=role_id,
+                        )
+                    )
+            case 'default':
+                assert project_id, 'projects_id is required for default mode assignment'
+                self.context.rpc_manager.timeout(3).add_user_to_project(
+                    project_id=project_id,
                     user_id=user_id,
-                    role_id=role_id,
+                    role_name=role_name
                 )
-            ).inserted_primary_key[0]
+            case _:
+                raise Exception(f'Unknown mode: {mode}')
 
     def get_permissions(self, mode="administration"):
         #
@@ -1665,8 +1691,18 @@ class Module(module.ModuleModel):
             # log.info(f"user roles {result=}")
             return {item['name'] for item in result}
 
-    def get_user_permissions(self, user_id, mode='administration'):
-        # log.info(f"{user_id=}")
+    def get_user_permissions(self, user_id: int, mode: str = 'administration',
+                             project_id: Optional[str] = None,
+                             **kwargs) -> set:
+        # log.info(f"get_user_permissions {user_id=} {mode=} {project_id=}")
+        if mode == 'default':
+            if project_id:
+                return self.context.rpc_manager.call.get_permissions_in_project(
+                    project_id=project_id,
+                    user_id=user_id
+                )
+            else:
+                return set()
 
         with self.db.engine.connect() as connection:
             data = connection.execute(
