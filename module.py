@@ -937,12 +937,14 @@ class Module(module.ModuleModel):
         raise ValueError("ID or name is not provided")
 
     @rpc_tools.wrap_exceptions(RuntimeError)
-    def _list_users(self):
+    def _list_users(self, user_ids: Optional[list] = None) -> list[dict]:
+        query = self.db.tbl.user.select()
+        if user_ids:
+            query = query.where(
+                self.db.tbl.user.c.id.in_(user_ids),
+            )
         with self.db.engine.connect() as connection:
-            users = connection.execute(
-                self.db.tbl.user.select()
-            ).mappings().all()
-        #
+            users = connection.execute(query).mappings().all()
         return [db_tools.sqlalchemy_mapping_to_dict(item) for item in users]
 
     #
@@ -1492,7 +1494,7 @@ class Module(module.ModuleModel):
         return True
 
     @rpc_tools.wrap_exceptions(RuntimeError)
-    def get_roles(self, mode="administration") -> list[str]:
+    def get_roles(self, mode: str = "administration") -> list[str]:
         with self.db.engine.connect() as connection:
             data = connection.execute(
                 self.db.tbl.role.select().where(
@@ -1507,7 +1509,7 @@ class Module(module.ModuleModel):
         ]
 
     @rpc_tools.wrap_exceptions(RuntimeError)
-    def add_role(self, name, mode="administration"):
+    def add_role(self, name: str, mode: str = "administration") -> int:
         with self.db.engine.connect() as connection:
             return connection.execute(
                 self.db.tbl.role.insert().values(
@@ -1517,7 +1519,7 @@ class Module(module.ModuleModel):
             ).inserted_primary_key[0]
 
     @rpc_tools.wrap_exceptions(RuntimeError)
-    def delete_role(self, name, mode="administration"):
+    def delete_role(self, name: str, mode: str = "administration") -> None:
         with self.db.engine.connect() as connection:
             role_id = connection.execute(
                 self.db.tbl.role.select().where(
@@ -1542,7 +1544,7 @@ class Module(module.ModuleModel):
             )
 
     @rpc_tools.wrap_exceptions(RuntimeError)
-    def update_role_name(self, old_name, new_name, mode="administration"):
+    def update_role_name(self, old_name: str, new_name: str, mode: str = "administration") -> int:
         with self.db.engine.connect() as connection:
             data = connection.execute(
                 self.db.tbl.role.update().where(
@@ -1576,10 +1578,10 @@ class Module(module.ModuleModel):
                     )
             case 'default':
                 assert project_id, 'projects_id is required for default mode assignment'
-                self.context.rpc_manager.timeout(3).add_user_to_project(
+                self.context.rpc_manager.timeout(3).admin_add_user_to_project(
                     project_id=project_id,
                     user_id=user_id,
-                    role_name=role_name
+                    role_names=[role_name]
                 )
             case _:
                 raise Exception(f'Unknown mode: {mode}')
@@ -1615,23 +1617,32 @@ class Module(module.ModuleModel):
             db_tools.sqlalchemy_mapping_to_dict(item) for item in data_1
         ]
 
-    def set_permission_for_role(self, role_name, permission_name, mode="administration"):
+    def set_permission_for_role(self, role_name: str, permission_name: str,
+                                mode: str = "administration", **kwargs) -> None:
         with self.db.engine.connect() as connection:
-            data = connection.execute(
+            # role_id = connection.execute(
+            #     self.db.tbl.role.select().where(
+            #         self.db.tbl.role.c.name == role_name,
+            #         self.db.tbl.role.c.mode == mode
+            #     )
+            # ).inserted_primary_key[0]
+            tmp = connection.execute(
                 self.db.tbl.role.select().where(
                     self.db.tbl.role.c.name == role_name,
                     self.db.tbl.role.c.mode == mode
                 )
-            ).mappings().one()
-            # log.info(f"{data=}")
-            role_id = data["id"]
-            data = connection.execute(
+            )
+            q1 = tmp.mappings().one()
+            q2 = tmp.inserted_primary_key[0]
+            log.info(f"{q1=}   {q2=}")
+            role_id = q2
+            # role_id = data["id"]
+            connection.execute(
                 self.db.tbl.role_permission.insert().values(
                     role_id=role_id,
                     permission=permission_name,
                 )
-            ).inserted_primary_key[0]
-        return data
+            )
 
     def remove_permission_from_role(self, role_name, permission_name, mode="administration"):
         with self.db.engine.connect() as connection:
@@ -1697,7 +1708,7 @@ class Module(module.ModuleModel):
         # log.info(f"get_user_permissions {user_id=} {mode=} {project_id=}")
         if mode == 'default':
             if project_id:
-                return self.context.rpc_manager.call.get_permissions_in_project(
+                return self.context.rpc_manager.call.admin_get_permissions_in_project(
                     project_id=project_id,
                     user_id=user_id
                 )
