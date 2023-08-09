@@ -1365,7 +1365,11 @@ class Module(module.ModuleModel):
     #
 
     @rpc_tools.wrap_exceptions(RuntimeError)
-    def _add_token(self, user_id, name="", expires=None, token_id=...):
+    def _add_token(self,
+                   user_id: int,
+                   name: str = "",
+                   expires: Optional[datetime.datetime] = None,
+                   token_id: Optional[int] = None):
         token_uuid = str(uuid.uuid4())
         #
         values = {
@@ -1374,11 +1378,10 @@ class Module(module.ModuleModel):
             "expires": expires,
             "name": name,
         }
-        #
-        if token_id is not ...:
+
+        if token_id:
             values["id"] = token_id
-        #
-        #
+
         with self.db.engine.connect() as connection:
             return connection.execute(
                 self.db.tbl.token.insert().values(**values)
@@ -1416,19 +1419,19 @@ class Module(module.ModuleModel):
         raise ValueError("ID or UUID or name is not provided")
 
     @rpc_tools.wrap_exceptions(RuntimeError)
-    def _list_tokens(self, user_id: Optional[int] = None):
+    def _list_tokens(self, user_id: Optional[int] = None, name: Optional[str] = None):
+        where = []
+        query = self.db.tbl.token.select()
+        if name is not None:
+            where.append(self.db.tbl.token.c.name == name)
+        if user_id is not None:
+            where.append(self.db.tbl.token.c.user_id == user_id)
+
+        if where:
+            query = query.where(*where)
+
         with self.db.engine.connect() as connection:
-            if user_id is not None:
-                tokens = connection.execute(
-                    self.db.tbl.token.select().where(
-                        self.db.tbl.token.c.user_id == user_id,
-                    )
-                ).mappings().all()
-            else:
-                tokens = connection.execute(
-                    self.db.tbl.token.select()
-                ).mappings().all()
-        #
+            tokens = connection.execute(query).mappings().all()
         return [
             db_tools.sqlalchemy_mapping_to_dict(item) for item in tokens
         ]
