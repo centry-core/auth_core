@@ -580,7 +580,12 @@ class Module(module.ModuleModel):
 
     def logout_needed_redirect(self, target_token):
         """ Client: logout redirect """
-        target_provider = self.descriptor.config.get("auth_provider", None)
+        auth_ctx = self.get_auth_context()
+        #
+        target_provider = auth_ctx.get("provider", None)
+        if target_provider is None or target_provider not in self.auth_providers:
+            target_provider = self.descriptor.config.get("auth_provider", None)
+        #
         if target_provider not in self.auth_providers:
             return self.access_denied_reply()
         target_info = self.auth_providers[target_provider]
