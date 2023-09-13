@@ -1642,7 +1642,7 @@ class Module(module.ModuleModel):
             try:
                 q2 = tmp.inserted_primary_key[0]
             except:
-                q2 = tmp["id"]
+                q2 = q1["id"]
             log.info(f"{q1=}   {q2=}")
             role_id = q2
             # role_id = data["id"]
