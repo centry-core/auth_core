@@ -1639,7 +1639,10 @@ class Module(module.ModuleModel):
                 )
             )
             q1 = tmp.mappings().one()
-            q2 = tmp.inserted_primary_key[0]
+            try:
+                q2 = tmp.inserted_primary_key[0]
+            except:
+                q2 = tmp["id"]
             log.info(f"{q1=}   {q2=}")
             role_id = q2
             # role_id = data["id"]
