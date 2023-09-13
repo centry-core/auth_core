@@ -1570,7 +1570,14 @@ class Module(module.ModuleModel):
                             mode: str = 'administration',
                             project_id: Optional[int] = None) -> None:
         match mode:
-            case 'administration':
+            case 'default':
+                assert project_id, 'projects_id is required for default mode assignment'
+                self.context.rpc_manager.timeout(3).admin_add_user_to_project(
+                    project_id=project_id,
+                    user_id=user_id,
+                    role_names=[role_name]
+                )
+            case _:
                 with self.db.engine.connect() as connection:
                     role_id = connection.execute(
                         self.db.tbl.role.select().where(
@@ -1584,15 +1591,6 @@ class Module(module.ModuleModel):
                             role_id=role_id,
                         )
                     )
-            case 'default':
-                assert project_id, 'projects_id is required for default mode assignment'
-                self.context.rpc_manager.timeout(3).admin_add_user_to_project(
-                    project_id=project_id,
-                    user_id=user_id,
-                    role_names=[role_name]
-                )
-            case _:
-                raise Exception(f'Unknown mode: {mode}')
 
     def get_permissions(self, mode="administration"):
         #
