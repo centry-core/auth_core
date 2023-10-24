@@ -12,3 +12,5 @@ db_options:  # DB options
 
 # default_login_url: "/"  # URL to redirect on login with no target set
 # default_logout_url: "/"  # URL to redirect on logout with no target set
+
+ALLOW_CORS: $ALLOW_CORS

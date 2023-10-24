@@ -26,6 +26,8 @@ from typing import Optional
 
 import jwt  # pylint: disable=E0401
 import flask  # pylint: disable=E0401
+from flask import request, make_response
+
 import sqlalchemy  # pylint: disable=E0401
 
 from pylon.core.tools import log  # pylint: disable=E0611,E0401
@@ -302,6 +304,18 @@ class Module(module.ModuleModel):
         )
         for key, value in additional_headers.items():
             response.headers[key] = value
+
+        log.info(f'afffter, {self.descriptor.config}')
+        if self.descriptor.config.get('ALLOW_CORS') and \
+                request.headers.get('X-Forwarded-Uri', '').startswith('/api/') and \
+                request.headers.get('X-Forwarded-Method') == 'OPTIONS':
+            response = make_response()
+            response.headers.add('Access-Control-Allow-Headers', '*')
+            response.headers.add('Access-Control-Allow-Methods', '*')
+            response.headers.add('Access-Control-Allow-Credentials', 'true')
+            response.headers.add('Access-Control-Allow-Origin', '*')
+            log.info(f'after cors_after_request\n\tresponse: {response}\nh: {response.headers}')
+
         return response
 
     #
