@@ -374,6 +374,30 @@ class Module(module.ModuleModel):
             return self.access_success_reply(
                 source, auth_type, auth_id, auth_reference
             )
+        # Check other auth headers
+        other_auth_headers = self.descriptor.config.get(
+            "other_auth_headers", dict()
+        )
+        for header_name, credential_type in  other_auth_headers.items():
+            if header_name in flask.request.headers:
+                credential_data = flask.request.headers.get(header_name)
+                #
+                if credential_type not in self.credential_handlers:
+                    # No credential handler
+                    return self.access_denied_reply(source)
+                #
+                try:
+                    auth_type, auth_id, auth_reference = \
+                        self.credential_handlers[credential_type](
+                            source, credential_data
+                        )
+                except:
+                    # Bad credential
+                    return self.access_denied_reply(source)
+                #
+                return self.access_success_reply(
+                    source, auth_type, auth_id, auth_reference
+                )
         # Browser auth
         auth_ctx = self.get_auth_context()
         if auth_ctx["done"] and \
