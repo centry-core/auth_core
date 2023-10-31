@@ -305,7 +305,6 @@ class Module(module.ModuleModel):
         for key, value in additional_headers.items():
             response.headers[key] = value
 
-        log.info(f'afffter, {self.descriptor.config}')
         if self.descriptor.config.get('ALLOW_CORS') and \
                 request.headers.get('X-Forwarded-Uri', '').startswith('/api/') and \
                 request.headers.get('X-Forwarded-Method') == 'OPTIONS':
