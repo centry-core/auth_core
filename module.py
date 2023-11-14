@@ -74,6 +74,10 @@ class Module(module.ModuleModel):
                 self._get_referenced_auth_context,
                 "auth_get_referenced_auth_context"
             ],
+            [
+                self._set_referenced_auth_context,
+                "auth_set_referenced_auth_context"
+            ],
             [self._get_session_cookie_name, "auth_get_session_cookie_name"],
             #
             [self._register_auth_provider, "auth_register_auth_provider"],
@@ -512,16 +516,19 @@ class Module(module.ModuleModel):
             "user_id": session.get("auth_user_id", None),
         }
 
-    def set_auth_context(self, auth_context):
+    def set_auth_context(self, auth_context, session=None):
         """ Save current auth context in session """
-        flask.session["auth_done"] = auth_context.get("done", False)
-        flask.session["auth_error"] = auth_context.get("error", "")
-        flask.session["auth_expiration"] = auth_context.get("expiration", None)
-        flask.session["auth_provider"] = auth_context.get("provider", None)
-        flask.session["auth_provider_attr"] = auth_context.get(
+        if session is None:
+            session = flask.session
+        #
+        session["auth_done"] = auth_context.get("done", False)
+        session["auth_error"] = auth_context.get("error", "")
+        session["auth_expiration"] = auth_context.get("expiration", None)
+        session["auth_provider"] = auth_context.get("provider", None)
+        session["auth_provider_attr"] = auth_context.get(
             "provider_attr", dict()
         )
-        flask.session["auth_user_id"] = auth_context.get("user_id", None)
+        session["auth_user_id"] = auth_context.get("user_id", None)
 
     def access_denied_reply(self, source=None):
         """ Traefik/client: bad auth reply/redirect """
@@ -738,6 +745,27 @@ class Module(module.ModuleModel):
             )
         #
         return self.get_auth_context(session)
+
+    @rpc_tools.wrap_exceptions(RuntimeError)
+    def _set_referenced_auth_context(self, auth_reference, auth_context):
+        request = Holder()
+        request.cookies = {
+            self.context.app.session_cookie_name: auth_reference
+        }
+        #
+        response = Holder()
+        response.set_cookie = lambda *args, **kvargs: None
+        #
+        with self.context.app.app_context():
+            session = self.context.app.session_interface.open_session(
+                self.context.app, request,
+            )
+            #
+            self.set_auth_context(auth_context, session)
+            #
+            self.context.app.session_interface.save_session(
+                self.context.app, session, response,
+            )
 
     #
     # RPC: session cookie name
