@@ -475,6 +475,26 @@ class Module(module.ModuleModel):
     # Tools
     #
 
+    def get_auth_reference(self):
+        """ Get auth reference (session cookie value) """
+        cookie_name = self.context.app.session_cookie_name
+        cookie = flask.request.cookies.get(cookie_name, None)
+        #
+        if cookie:
+            return cookie
+        #
+        response = Holder()
+        response.cookie = {"data": None}
+        response.set_cookie = lambda *args, **kvargs: response.cookie.update({"data": kvargs.get("value", None)})  # pylint: disable=C0301
+        #
+        flask.session.modified = True
+        self.context.app.session_interface.save_session(
+            self.context.app, flask.session, response,
+        )
+        #
+        flask.session.modified = True
+        return response.cookie.get("data", None)
+
     @staticmethod
     def make_source_url(source):
         """ Make original URL from source """
