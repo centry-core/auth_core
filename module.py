@@ -643,6 +643,7 @@ class Module(module.ModuleModel):
                     )
                 )
             except:
+                log.exception("Failed to make login route URL")
                 return self.access_denied_reply(to_json=to_json)
         #
         if target_info["login_url"] is not None:
