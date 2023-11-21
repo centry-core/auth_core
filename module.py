@@ -550,27 +550,44 @@ class Module(module.ModuleModel):
         )
         session["auth_user_id"] = auth_context.get("user_id", None)
 
-    def access_denied_reply(self, source=None):
+    def access_denied_reply(self, source=None, to_json=False):
         """ Traefik/client: bad auth reply/redirect """
         # Check public rules
         if source is not None:
             for rule in self.public_rules:
                 if self._public_rule_matches(rule, source):
                     # Public request
-                    return self.access_success_reply(source, "public")
+                    return self.access_success_reply(source, "public", to_json=to_json)
         #
         if "auth_denied_url" in self.descriptor.config:
+            if to_json:
+                return {
+                    "auth_ok": False,
+                    "reply": "access_denied",
+                    "action": "redirect",
+                    "target": self.descriptor.config.get("auth_denied_url"),
+                }
             return flask.redirect(self.descriptor.config.get("auth_denied_url"))
+        #
+        if to_json:
+            return {
+                "auth_ok": False,
+                "reply": "access_denied",
+                "action": "make_response",
+                "data": "Access Denied",
+                "status_code": 403,
+            }
         return flask.make_response("Access Denied", 403)
 
     def access_success_reply(
             self, source,
             auth_type, auth_id="-", auth_reference="-",
+            to_json=False,
     ):
         """ Traefik: auth OK reply """
         auth_target = source["target"]
         if auth_target not in self.success_mappers:
-            return self.access_denied_reply()
+            return self.access_denied_reply(to_json=to_json)
         #
         try:
             auth_allow, auth_headers = self.success_mappers[auth_target](
@@ -580,22 +597,44 @@ class Module(module.ModuleModel):
             auth_allow = False
         #
         if not auth_allow:
-            return self.access_denied_reply()
+            return self.access_denied_reply(to_json=to_json)
+        #
+        if to_json:
+            response = {
+                "auth_ok": True,
+                "reply": "access_success",
+                "headers": {},
+            }
+            for key, value in auth_headers.items():
+                response["headers"][key] = str(value)
+            return response
         #
         response = flask.make_response("OK")
         for key, value in auth_headers.items():
             response.headers[key] = str(value)
         return response
 
-    def access_needed_redirect(self, target_token):
+    def access_needed_redirect(self, target_token, to_json=False):
         """ Client: auth redirect """
         target_provider = self.descriptor.config.get("auth_provider", None)
         if target_provider not in self.auth_providers:
-            return self.access_denied_reply()
+            return self.access_denied_reply(to_json=to_json)
         target_info = self.auth_providers[target_provider]
         #
         if target_info["login_route"] is not None:
             try:
+                if to_json:
+                    return {
+                        "auth_ok": False,
+                        "reply": "access_denied",
+                        "action": "redirect",
+                        "target": flask.url_for(
+                            target_info["login_route"],
+                            target_to=target_token,
+                            _external=True
+                        ),
+                    }
+                #
                 return flask.redirect(
                     flask.url_for(
                         target_info["login_route"],
@@ -604,18 +643,26 @@ class Module(module.ModuleModel):
                     )
                 )
             except:
-                return self.access_denied_reply()
+                return self.access_denied_reply(to_json=to_json)
         #
         if target_info["login_url"] is not None:
             try:
                 url_params = urllib.parse.urlencode({"target_to": target_token})
+                #
+                if to_json:
+                    return {
+                        "auth_ok": False,
+                        "reply": "access_denied",
+                        "action": "redirect",
+                        "target": f'{target_info["login_url"]}?{url_params}',
+                    }
                 return flask.redirect(
                     f'{target_info["login_url"]}?{url_params}'
                 )
             except:
-                return self.access_denied_reply()
+                return self.access_denied_reply(to_json=to_json)
         #
-        return self.access_denied_reply()
+        return self.access_denied_reply(to_json=to_json)
 
     def access_success_redirect(self, target_token):
         """ Client: auth OK redirect """
