@@ -626,7 +626,7 @@ class Module(module.ModuleModel):
                 if to_json:
                     return {
                         "auth_ok": False,
-                        "reply": "access_denied",
+                        "reply": "access_needed",
                         "action": "redirect",
                         "target": flask.url_for(
                             target_info["login_route"],
@@ -652,7 +652,7 @@ class Module(module.ModuleModel):
                 if to_json:
                     return {
                         "auth_ok": False,
-                        "reply": "access_denied",
+                        "reply": "access_needed",
                         "action": "redirect",
                         "target": f'{target_info["login_url"]}?{url_params}',
                     }
