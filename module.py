@@ -1848,7 +1848,7 @@ class Module(module.ModuleModel):
                              project_id: Optional[str] = None,
                              **kwargs) -> set:
         # log.info(f"get_user_permissions {user_id=} {mode=} {project_id=}")
-        if mode == 'default':
+        if mode == 'default' or mode == 'prompt_lib':
             if project_id:
                 return self.context.rpc_manager.call.admin_get_permissions_in_project(
                     project_id=project_id,
