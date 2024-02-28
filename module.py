@@ -244,6 +244,7 @@ class Module(module.ModuleModel):
         )
         # Hooks
         self.context.app.errorhandler(Exception)(self._error_handler)
+        self.context.app.before_request(self._before_request_hook)
         self.context.app.after_request(self._after_request_hook)
         # Init RPCs
         for rpc_item in self._rpcs:
@@ -301,6 +302,9 @@ class Module(module.ModuleModel):
     def _error_handler(self, error):
         log.error("Error: %s", error)
         return self.access_denied_reply(), 400
+
+    def _before_request_hook(self):
+        flask.session.permanent = True
 
     def _after_request_hook(self, response):
         additional_headers = self.descriptor.config.get(
