@@ -1580,16 +1580,22 @@ class Module(module.ModuleModel):
 
     @rpc_tools.wrap_exceptions(RuntimeError)
     def _encode_token(self, token_id: Optional[int] = None, uuid: Optional[str] = None):
-        if token_id is not None:
-            token = self._get_token(token_id)
-            token_uuid = token["uuid"]
-        elif uuid is not None:
-            token_uuid = uuid
-        else:
+        if not (token_id or uuid):
             raise ValueError("ID or UUID is not provided")
-        #
+
+        token_ident = token_id or uuid
+        token = self._get_token(token_ident)
+        expires: Optional[datetime.datetime] = token['expires']
+        if expires:
+            expires: str = expires.isoformat(timespec='minutes')
+            # expires: float = expires.timestamp()
+
+        result = {
+            'uuid': token['uuid'],
+            'expires': expires
+        }
         return jwt.encode(
-            {"uuid": token_uuid},
+            result,
             self.context.app.secret_key,
             algorithm="HS512",
         )
