@@ -308,11 +308,11 @@ class Module(module.ModuleModel):
 
     def _after_request_hook(self, response):
         additional_headers = self.descriptor.config.get(
-            "additional_headers", dict()
+            "additional_headers", {}
         )
         for key, value in additional_headers.items():
             response.headers[key] = value
-
+        #
         if self.descriptor.config.get('ALLOW_CORS') and \
                 request.headers.get('X-Forwarded-Uri', '').startswith('/api/') and \
                 request.headers.get('X-Forwarded-Method') == 'OPTIONS':
@@ -322,7 +322,14 @@ class Module(module.ModuleModel):
             response.headers.add('Access-Control-Allow-Credentials', 'true')
             response.headers.add('Access-Control-Allow-Origin', '*')
             log.info(f'after cors_after_request\n\tresponse: {response}\nh: {response.headers}')
-
+        #
+        additional_default_headers = self.descriptor.config.get(
+            "additional_default_headers", {}
+        )
+        for key, value in additional_default_headers.items():
+            if key not in response.headers:
+                response.headers[key] = value
+        #
         return response
 
     #
