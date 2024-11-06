@@ -305,6 +305,12 @@ class Module(module.ModuleModel):
 
     def _before_request_hook(self):
         flask.session.permanent = True
+        #
+        if self.descriptor.config.get("force_https_redirect", False):
+            if flask.request.scheme == "http":
+                return flask.redirect(flask.request.url.replace("http://", "https://", 1))
+        #
+        return None
 
     def _after_request_hook(self, response):
         additional_headers = self.descriptor.config.get(
