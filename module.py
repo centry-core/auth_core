@@ -306,7 +306,10 @@ class Module(module.ModuleModel):
     def _before_request_hook(self):
         flask.session.permanent = True
         #
-        if self.descriptor.config.get("force_https_redirect", False):
+        if self.descriptor.config.get("force_https_redirect", False) and \
+                flask.request.host not in self.descriptor.config.get(
+                    "https_redirect_excludes", []
+                ):
             if flask.request.scheme == "http":
                 return flask.redirect(flask.request.url.replace("http://", "https://", 1))
         #
