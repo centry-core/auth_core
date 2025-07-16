@@ -1,5 +1,5 @@
 additional_headers:
-  Server: Carrier
+  Server: Centry
 
 # db_url: "sqlite:////path/to/auth_core_db.sqlite"  # DB connection URL
 db_options:  # DB options
