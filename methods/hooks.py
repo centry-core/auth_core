@@ -18,6 +18,8 @@
 
 """ Method """
 
+import traceback
+
 import flask  # pylint: disable=E0401
 
 from pylon.core.tools import web, log  # pylint: disable=E0401,E0611,W0611
@@ -46,6 +48,11 @@ class Method:  # pylint: disable=E1101,R0903
 
     @web.method()
     def error_handler(self, error):
+        try:
+            error = "".join(traceback.format_exception(error))
+        except:  # pylint: disable=W0702
+            pass
+        #
         log.error("Error: %s", error)
         return self.access_denied_reply(), 400
 
