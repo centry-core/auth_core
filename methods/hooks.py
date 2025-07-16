@@ -38,7 +38,8 @@ class Method:  # pylint: disable=E1101,R0903
 
     @web.init()
     def hooks_init(self):
-        self.context.app.errorhandler(Exception)(self.error_handler)
+        if self.descriptor.config.get("register_error_handler", True):
+            self.context.app.errorhandler(Exception)(self.error_handler)
         #
         if "auth" in self.context.module_manager.modules:
             return
@@ -48,10 +49,11 @@ class Method:  # pylint: disable=E1101,R0903
 
     @web.method()
     def error_handler(self, error):
-        try:
-            error = "".join(traceback.format_exception(error))
-        except:  # pylint: disable=W0702
-            pass
+        if self.descriptor.config.get("traceback_error_handler", True):
+            try:
+                error = "".join(traceback.format_exception(error))
+            except:  # pylint: disable=W0702
+                pass
         #
         log.error("Error: %s", error)
         return self.access_denied_reply(), 400
