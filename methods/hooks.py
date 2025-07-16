@@ -51,7 +51,7 @@ class Method:  # pylint: disable=E1101,R0903
     @web.method()
     def error_handler(self, error):
         if isinstance(error, werkzeug.exceptions.NotFound):
-            return error.get_response()
+            return "Not Found", 404
         #
         if self.descriptor.config.get("traceback_error_handler", True):
             try:
@@ -60,6 +60,7 @@ class Method:  # pylint: disable=E1101,R0903
                 pass
         #
         log.error("Error: %s", error)
+        #
         return self.access_denied_reply(), 400
 
     @web.method()
