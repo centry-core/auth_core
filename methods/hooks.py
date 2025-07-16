@@ -37,6 +37,10 @@ class Method:  # pylint: disable=E1101,R0903
     @web.init()
     def hooks_init(self):
         self.context.app.errorhandler(Exception)(self.error_handler)
+        #
+        if "auth" in self.context.module_manager.modules:
+            return
+        #
         self.context.app.before_request(self.before_request_hook)
         self.context.app.after_request(self.after_request_hook)
 
