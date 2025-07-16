@@ -21,6 +21,7 @@
 import traceback
 
 import flask  # pylint: disable=E0401
+import werkzeug.exceptions  # pylint: disable=E0401
 
 from pylon.core.tools import web, log  # pylint: disable=E0401,E0611,W0611
 
@@ -49,6 +50,9 @@ class Method:  # pylint: disable=E1101,R0903
 
     @web.method()
     def error_handler(self, error):
+        if isinstance(error, werkzeug.exceptions.NotFound):
+            return error.get_response()
+        #
         if self.descriptor.config.get("traceback_error_handler", True):
             try:
                 error = "".join(traceback.format_exception(error))
