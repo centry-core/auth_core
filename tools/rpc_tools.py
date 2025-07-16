@@ -34,7 +34,7 @@ def wrap_exceptions(target_exception):
             except BaseException as exception_data:
                 if isinstance(exception_data, _target_exception):
                     raise exception_data
-                raise _target_exception(traceback.format_exc())
+                raise _target_exception(traceback.format_exc())  # pylint: disable=W0707
         #
         return _decorated
     #

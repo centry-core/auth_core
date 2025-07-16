@@ -17,8 +17,8 @@
 
 """ DB migrations """
 
-import sqlalchemy
-import sqlalchemy.pool
+import sqlalchemy  # pylint: disable=E0401
+import sqlalchemy.pool  # pylint: disable=E0401
 
 import alembic  # pylint: disable=E0401
 import alembic.util  # pylint: disable=E0401
@@ -30,7 +30,7 @@ import alembic.runtime.environment  # pylint: disable=E0401
 from pylon.core.tools import log  # pylint: disable=E0611,E0401
 
 
-def run_db_migrations(  # pylint: disable=R0913
+def run_db_migrations(  # pylint: disable=R0913,R0917
         module, db_url, payload=None,
         migrations_path=None, version_table=None,
         revision="head",
