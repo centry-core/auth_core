@@ -115,13 +115,13 @@ class Module(module.ModuleModel):
             static_url_prefix=self.descriptor.config.get("static_url_prefix", "/"),
         )
         # Register tool
-        self.descriptor.register_tool("auth", self)
+        self.descriptor.register_tool("auth_core", self)
 
     def deinit(self):
         """ De-init module """
         log.info("De-initializing module")
         # Unregister tool
-        self.descriptor.unregister_tool("auth")
+        self.descriptor.unregister_tool("auth_core")
         # De-init
         self.deinit_blueprint()
         self.deinit_deinits()
