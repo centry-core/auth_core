@@ -111,8 +111,8 @@ class Module(module.ModuleModel):
         self.descriptor.init_methods()
         self.descriptor.init_inits()
         self.descriptor.init_blueprint(
-            url_prefix="/",
-            static_url_prefix="/",
+            url_prefix=self.descriptor.config.get("url_prefix", "/"),
+            static_url_prefix=self.descriptor.config.get("static_url_prefix", "/"),
         )
         # Register tool
         self.descriptor.register_tool("auth", self)
