@@ -64,3 +64,13 @@ class Method:  # pylint: disable=E1101,R0903
             raise ValueError("Invalid URL token")  # pylint: disable=W0707
         #
         return url_data["url"]
+
+    @web.method()
+    def get_relative_url_prefix(self, target_descriptor, target_url_prefix=None):
+        """ Get relative URL prefix """
+        if target_url_prefix is None:
+            target_url_prefix = f"/{target_descriptor.name}"
+        #
+        core_prefix = self.descriptor.config.get("url_prefix", "/")
+        #
+        return f'{core_prefix.rstrip("/")}/{target_url_prefix.lstrip("/")}'
