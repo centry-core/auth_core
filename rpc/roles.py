@@ -24,6 +24,7 @@ from typing import Optional
 from pylon.core.tools import web, log  # pylint: disable=E0401,E0611,W0611
 
 from sqlalchemy import select, bindparam, and_  # pylint: disable=E0401
+from sqlalchemy.dialects.postgresql import insert  # pylint: disable=E0401
 
 from ..tools import rpc_tools
 from ..db import db_tools
@@ -232,7 +233,7 @@ class RPC:  # pylint: disable=R0903,E1101
     @web.rpc("auth_insert_permissions", "insert_permissions")
     def insert_permissions(self, permissions: tuple[str, str, str]):  # pylint: disable=R1711
         with self.db.engine.connect() as connection:
-            insert_permission = self.db.tbl.role_permission.insert().values(
+            insert_permission = insert(self.db.tbl.role_permission).values(
                 role_id=select(self.db.tbl.role.c.id).where(
                     and_(
                         self.db.tbl.role.c.name == bindparam("name"),
