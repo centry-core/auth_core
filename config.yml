@@ -1,5 +1,5 @@
 additional_headers:
-  Server: Carrier
+  Server: Centry
 
 # db_url: "sqlite:////path/to/auth_core_db.sqlite"  # DB connection URL
 db_options:  # DB options
@@ -14,3 +14,6 @@ db_options:  # DB options
 # default_logout_url: "/"  # URL to redirect on logout with no target set
 
 ALLOW_CORS: $ALLOW_CORS
+
+url_prefix: "/"
+static_url_prefix: "/"

@@ -1,5 +1,6 @@
 #!/usr/bin/python3
 # coding=utf-8
+# pylint: disable=C0103,C0116
 
 #   Copyright 2022 getcarrier.io
 #
@@ -21,11 +22,13 @@ revision = "202202021633"
 down_revision = None
 branch_labels = None
 
-from alembic import op
-import sqlalchemy as sa
+from alembic import op  # pylint: disable=E0401,C0413
+import sqlalchemy as sa  # pylint: disable=E0401,C0413
 
 
 def upgrade(module, payload):
+    _ = payload
+    #
     module_name = module.descriptor.name
     #
     op.create_table(
@@ -190,7 +193,7 @@ def upgrade(module, payload):
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("name", "mode"),
     )
-
+    #
     op.bulk_insert(
         roles_table,
         [
@@ -208,7 +211,7 @@ def upgrade(module, payload):
             {"name": "viewer", "mode": "default"},
         ]
     )
-
+    #
     op.create_table(
         f"{module_name}__role_permission",
         sa.Column("id", sa.Integer(), nullable=False),
@@ -218,8 +221,8 @@ def upgrade(module, payload):
         sa.UniqueConstraint("role_id", "permission"),
         sa.ForeignKeyConstraint(["role_id"], [f"{module_name}__role.id"], ondelete='CASCADE')
     )
-
-    user_role_table = op.create_table(
+    #
+    op.create_table(
         f"{module_name}__user_role",
         sa.Column("id", sa.Integer(), nullable=False),
         sa.Column("user_id", sa.Integer(), nullable=False),
@@ -232,8 +235,9 @@ def upgrade(module, payload):
 
 
 def downgrade(module, payload):
+    _ = payload
+    #
     module_name = module.descriptor.name
-
     #
     op.drop_table(f"{module_name}__token")
     op.drop_table(f"{module_name}__group_permission")
