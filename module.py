@@ -123,8 +123,8 @@ class Module(module.ModuleModel):
         # Unregister tool
         self.descriptor.unregister_tool("auth_core")
         # De-init
-        self.deinit_blueprint()
-        self.deinit_deinits()
-        self.deinit_rpcs()
+        self.descriptor.deinit_blueprint()
+        self.descriptor.deinit_deinits()
+        self.descriptor.deinit_rpcs()
         # Dispose DB
         self.db.engine.dispose()
