@@ -17,6 +17,8 @@
 
 """ Module """
 
+import time
+
 import sqlalchemy  # pylint: disable=E0401
 from sqlalchemy.orm import sessionmaker  # pylint: disable=E0401
 
@@ -47,16 +49,19 @@ class Module(module.ModuleModel):
     def init(self):
         """ Init module """
         log.info("Initializing module")
-        # Prepare DB
-        db_migrations.run_db_migrations(self, self.db.url)
-        #
-        module_name = self.descriptor.name
         #
         self.db.engine = sqlalchemy.create_engine(
             self.db.url, **self.db.options
         )
+        #
+        self.wait_for_db()
+        #
+        db_migrations.run_db_migrations(self, self.db.url)
+        #
         self.db.session = sessionmaker(bind=self.db.engine)()
         self.db.metadata = sqlalchemy.MetaData()
+        #
+        module_name = self.descriptor.name
         #
         self.db.tbl.user = sqlalchemy.Table(
             f"{module_name}__user", self.db.metadata,
@@ -128,3 +133,36 @@ class Module(module.ModuleModel):
         self.descriptor.deinit_rpcs()
         # Dispose DB
         self.db.engine.dispose()
+
+    def wait_for_db(
+            self,
+            mute_first_failed_connections=1,
+            connection_retry_interval=3.0,
+            max_failed_connections=60,
+            log_errors=True,
+    ):
+        """ Wait for DB to be operational """
+        #
+        failed_connections = 0
+        #
+        while True:
+            try:
+                connection = self.db.engine.connect()
+                connection.close()
+                #
+                return
+            except Exception as exc:  # pylint: disable=W0702,W0718
+                if log_errors and \
+                        failed_connections >= mute_first_failed_connections:
+                    #
+                    log.exception(
+                        "Failed to create DB connection. Retrying in %s seconds",
+                        connection_retry_interval,
+                    )
+                #
+                failed_connections += 1
+                #
+                if max_failed_connections and failed_connections > max_failed_connections:
+                    raise RuntimeError("Failed to connect to DB") from exc
+                #
+                time.sleep(connection_retry_interval)

@@ -17,3 +17,5 @@ ALLOW_CORS: $ALLOW_CORS
 
 url_prefix: "/"
 static_url_prefix: "/"
+
+rpc_timeout: 120

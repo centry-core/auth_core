@@ -125,10 +125,13 @@ class RPC:  # pylint: disable=R0903,E1101
                             role_name: str,
                             mode: str = 'administration',
                             project_id: Optional[int] = None) -> None:
+        #
+        rpc_timeout = self.descriptor.config.get("rpc_timeout", 120)
+        #
         match mode:
             case 'default':
                 assert project_id, 'projects_id is required for default mode assignment'
-                self.context.rpc_manager.timeout(15).admin_add_user_to_project(
+                self.context.rpc_manager.timeout(rpc_timeout).admin_add_user_to_project(
                     project_id=project_id,
                     user_id=user_id,
                     role_names=[role_name]
@@ -281,11 +284,15 @@ class RPC:  # pylint: disable=R0903,E1101
     def get_user_permissions(self, user_id: int, mode: str = 'administration',  # pylint: disable=W0613
                              project_id: Optional[str] = None,
                              **kwargs) -> set:
-        # log.info(f"get_user_permissions {user_id=} {mode=} {project_id=}")
+        #
+        rpc_timeout = self.descriptor.config.get("rpc_timeout", 120)
+        #
         if mode in ['default', 'prompt_lib']:
             if project_id:
                 try:
-                    return self.context.rpc_manager.timeout(15).admin_get_permissions_in_project(
+                    return self.context.rpc_manager.timeout(
+                        rpc_timeout
+                    ).admin_get_permissions_in_project(
                         project_id=project_id,
                         user_id=user_id
                     )
