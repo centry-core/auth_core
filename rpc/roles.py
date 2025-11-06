@@ -33,7 +33,6 @@ class RPC:  # pylint: disable=R0903,E1101
 
     @web.rpc("auth_get_token_permissions", "get_token_permissions")
     @rpc_tools.wrap_exceptions(RuntimeError)
-    # @cachetools.cached(cache=cachetools.TTLCache(maxsize=1024, ttl=60))
     def get_token_permissions(self, token_id: int,  # pylint: disable=W1113,W0613
                                mode: str = 'administration',
                                project_id: Optional[int] = None,
