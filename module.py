@@ -46,6 +46,10 @@ class Module(module.ModuleModel):
     # Module
     #
 
+    def preload(self):
+        """ Preload handler """
+        self.descriptor.register_tool("auth_core", self)
+
     def init(self):
         """ Init module """
         log.info("Initializing module")
