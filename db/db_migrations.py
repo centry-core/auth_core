@@ -29,6 +29,8 @@ import alembic.runtime.environment  # pylint: disable=E0401
 
 from pylon.core.tools import log  # pylint: disable=E0611,E0401
 
+from tools import this  # pylint: disable=E0401
+
 
 def run_db_migrations(  # pylint: disable=R0913,R0917
         module, db_url, payload=None,
@@ -61,6 +63,17 @@ def run_db_migrations(  # pylint: disable=R0913,R0917
             db_url,
             poolclass=sqlalchemy.pool.NullPool,
         )
+        #
+        if this.descriptor.config.get("engine_use_managed_identity", False):
+            from sqlalchemy import event  # pylint: disable=E0401,C0415
+            from azure.identity import DefaultAzureCredential  # pylint: disable=E0401,C0415
+            #
+            @event.listens_for(engine, "do_connect")
+            def _get_managed_token(dialect, conn_rec, cargs, cparams):  # pylint: disable=W0613
+                credential = DefaultAzureCredential()
+                token = credential.get_token("https://ossrdbms-aad.database.windows.net/.default").token
+                cparams["password"] = token
+        #
         with engine.connect() as connection:
             alembic_context.configure(
                 target_metadata=None,
@@ -81,6 +94,17 @@ def get_db_revision(module, db_url, version_table=None):
         db_url,
         poolclass=sqlalchemy.pool.NullPool,
     )
+    #
+    if this.descriptor.config.get("engine_use_managed_identity", False):
+        from sqlalchemy import event  # pylint: disable=E0401,C0415
+        from azure.identity import DefaultAzureCredential  # pylint: disable=E0401,C0415
+        #
+        @event.listens_for(engine, "do_connect")
+        def _get_managed_token(dialect, conn_rec, cargs, cparams):  # pylint: disable=W0613
+            credential = DefaultAzureCredential()
+            token = credential.get_token("https://ossrdbms-aad.database.windows.net/.default").token
+            cparams["password"] = token
+    #
     with engine.connect() as connection:
         alembic_context = alembic.migration.MigrationContext.configure(
             connection,
