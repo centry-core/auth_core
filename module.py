@@ -58,6 +58,17 @@ class Module(module.ModuleModel):
             self.db.url, **self.db.options
         )
         #
+        # Managed identity
+        if self.descriptor.config.get("engine_use_managed_identity", False):
+            from sqlalchemy import event  # pylint: disable=E0401,C0415
+            from azure.identity import DefaultAzureCredential  # pylint: disable=E0401,C0415
+            #
+            @event.listens_for(self.db.engine, "do_connect")
+            def _get_managed_token(dialect, conn_rec, cargs, cparams):  # pylint: disable=W0613
+                credential = DefaultAzureCredential()
+                token = credential.get_token("https://ossrdbms-aad.database.windows.net/.default").token
+                cparams["password"] = token
+        #
         self.wait_for_db()
         #
         db_migrations.run_db_migrations(self, self.db.url)
