@@ -39,7 +39,12 @@ class RPC:  # pylint: disable=R0903,E1101
                                *args, **kwargs) -> set:
         token = self.get_token(token_id=token_id)
         token_user = token["user_id"]
-        self.update_user(token_user, last_login=datetime.datetime.utcnow())
+        # Update last_login only once per day to reduce DB writes
+        now = datetime.datetime.now(datetime.timezone.utc)
+        user = self.get_user(user_id=token_user)
+        last_login = user.get("last_login")
+        if last_login is None or last_login.date() < now.date():
+            self.update_user(token_user, last_login=now)
         # log.info("Token : %s", token)
         # log.info("Token mode: %s", mode)
         # log.info("Token project_id: %s", project_id)
