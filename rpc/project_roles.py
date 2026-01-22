@@ -382,7 +382,7 @@ class RPC:  # pylint: disable=R0903,E1101
                                     "permission": perm
                                 })
                                 existing_permissions.add((r_id, perm))
-            
+
             if perms_to_insert:
                 connection.execute(
                     self.db.tbl.project_role_permission.insert(), perms_to_insert
@@ -416,22 +416,22 @@ class RPC:  # pylint: disable=R0903,E1101
                                 "role_id": r_id
                             })
                             all_involved_users.add(u_id)
-            
+
             # Validate users exist
             valid_users = set()
             if all_involved_users:
-                 # Chunk user query if too many
-                 all_users_list = list(all_involved_users)
-                 chunk_size = 1000
-                 for i in range(0, len(all_users_list), chunk_size):
-                     chunk = all_users_list[i:i+chunk_size]
-                     u_rows = connection.execute(
-                         self.db.tbl.user.select().with_only_columns(
-                             self.db.tbl.user.c.id
-                         ).where(self.db.tbl.user.c.id.in_(chunk))
-                     ).all()
-                     for r in u_rows:
-                         valid_users.add(r[0])
+                # Chunk user query if too many
+                all_users_list = list(all_involved_users)
+                chunk_size = 1000
+                for i in range(0, len(all_users_list), chunk_size):
+                    chunk = all_users_list[i:i+chunk_size]
+                    u_rows = connection.execute(
+                        self.db.tbl.user.select().with_only_columns(
+                            self.db.tbl.user.c.id
+                        ).where(self.db.tbl.user.c.id.in_(chunk))
+                    ).all()
+                    for r in u_rows:
+                        valid_users.add(r[0])
 
             assignments_to_insert = [
                 a for a in assigns_to_insert_candidates
@@ -439,7 +439,7 @@ class RPC:  # pylint: disable=R0903,E1101
             ]
 
             if assignments_to_insert:
-                 connection.execute(
-                     self.db.tbl.project_user_role.insert(), assignments_to_insert
-                 )
+                connection.execute(
+                    self.db.tbl.project_user_role.insert(), assignments_to_insert
+                )
         return True
