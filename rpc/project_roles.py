@@ -303,3 +303,143 @@ class RPC:  # pylint: disable=R0903,E1101
             results = connection.execute(query).all()
         #
         return [row[0] for row in results]
+
+    @web.rpc("auth_apply_project_roles_snapshot", "apply_project_roles_snapshot")
+    @rpc_tools.wrap_exceptions(RuntimeError)
+    def apply_project_roles_snapshot(self, snapshot):
+        # snapshot: list of dicts: {
+        #   "project_id": 1,
+        #   "roles": [{"name": "...", "permissions": ["..."]}],
+        #   "assignments": [{"user_id": 1, "role": "..."}]
+        # }
+        mapping_roles = {} # (project_id, role_name) -> role_id
+
+        # 1. Ensure all roles exist
+        with self.db.engine.connect() as connection:
+            # Load existing roles for all targeted projects
+            project_ids = [s["project_id"] for s in snapshot]
+            existing_roles = connection.execute(
+                self.db.tbl.project_role.select().where(
+                    self.db.tbl.project_role.c.project_id.in_(project_ids)
+                )
+            ).mappings().all()
+            for row in existing_roles:
+                mapping_roles[(row["project_id"], row["name"])] = row["id"]
+
+            # Identify missing roles
+            roles_to_insert = []
+            for project in snapshot:
+                p_id = project["project_id"]
+                for role_data in project.get("roles", []):
+                    r_name = role_data["name"]
+                    if (p_id, r_name) not in mapping_roles:
+                        roles_to_insert.append({"project_id": p_id, "name": r_name})
+
+            # Insert missing roles
+            if roles_to_insert:
+                # Insert and get IDs back. Since executemany with returning might not be supported/easy for mapping back
+                # simply insert and re-query or insert one by one?
+                # For simplicity and support, we can just insert one by one or insert distinct then re-query
+                # Let's insert one by one to easily update mapping map, or use ON CONFLICT if DB supports it.
+                # Assuming standard SQL or supported wrapper.
+                # Optimized approach:
+                connection.execute(
+                    self.db.tbl.project_role.insert(), roles_to_insert
+                )
+                # Re-query to get IDs
+                refreshed_roles = connection.execute(
+                     self.db.tbl.project_role.select().where(
+                        self.db.tbl.project_role.c.project_id.in_(project_ids)
+                    )
+                ).mappings().all()
+                for row in refreshed_roles:
+                    mapping_roles[(row["project_id"], row["name"])] = row["id"]
+
+            # 2. Permissions
+            # We want to add missing permissions.
+            # Get existing permissions
+            existing_permissions = set()
+            db_perms = connection.execute(
+                 self.db.tbl.project_role_permission.select().where(
+                    self.db.tbl.project_role_permission.c.project_id.in_(project_ids)
+                )
+            ).mappings().all()
+            for row in db_perms:
+                 existing_permissions.add((row["role_id"], row["permission"]))
+
+            perms_to_insert = []
+            for project in snapshot:
+                p_id = project["project_id"]
+                for role_data in project.get("roles", []):
+                    r_name = role_data["name"]
+                    if (p_id, r_name) in mapping_roles:
+                        r_id = mapping_roles[(p_id, r_name)]
+                        for perm in role_data.get("permissions", []):
+                            if (r_id, perm) not in existing_permissions:
+                                perms_to_insert.append({
+                                    "project_id": p_id,
+                                    "role_id": r_id,
+                                    "permission": perm
+                                })
+                                existing_permissions.add((r_id, perm))
+            
+            if perms_to_insert:
+                connection.execute(
+                    self.db.tbl.project_role_permission.insert(), perms_to_insert
+                )
+
+            # 3. Assignments
+            # Get existing assignments
+            existing_assignments = set()
+            db_assigns = connection.execute(
+                 self.db.tbl.project_user_role.select().where(
+                    self.db.tbl.project_user_role.c.project_id.in_(project_ids)
+                )
+            ).mappings().all()
+            for row in db_assigns:
+                existing_assignments.add((row["project_id"], row["user_id"], row["role_id"]))
+
+            assigns_to_insert_candidates = []
+            all_involved_users = set()
+
+            for project in snapshot:
+                p_id = project["project_id"]
+                for assign in project.get("assignments", []):
+                    u_id = assign["user_id"]
+                    r_name = assign["role"]
+                    if (p_id, r_name) in mapping_roles:
+                        r_id = mapping_roles[(p_id, r_name)]
+                        if (p_id, u_id, r_id) not in existing_assignments:
+                            assigns_to_insert_candidates.append({
+                                "project_id": p_id,
+                                "user_id": u_id,
+                                "role_id": r_id
+                            })
+                            all_involved_users.add(u_id)
+            
+            # Validate users exist
+            valid_users = set()
+            if all_involved_users:
+                 # Chunk user query if too many
+                 all_users_list = list(all_involved_users)
+                 chunk_size = 1000
+                 for i in range(0, len(all_users_list), chunk_size):
+                     chunk = all_users_list[i:i+chunk_size]
+                     u_rows = connection.execute(
+                         self.db.tbl.user.select().with_only_columns(
+                             self.db.tbl.user.c.id
+                         ).where(self.db.tbl.user.c.id.in_(chunk))
+                     ).all()
+                     for r in u_rows:
+                         valid_users.add(r[0])
+
+            assignments_to_insert = [
+                a for a in assigns_to_insert_candidates
+                if a["user_id"] in valid_users
+            ]
+
+            if assignments_to_insert:
+                 connection.execute(
+                     self.db.tbl.project_user_role.insert(), assignments_to_insert
+                 )
+        return True
