@@ -126,6 +126,18 @@ class Module(module.ModuleModel):
             f"{module_name}__user_role", self.db.metadata,
             autoload_with=self.db.engine,
         )
+        self.db.tbl.project_role = sqlalchemy.Table(
+            f"{module_name}__project_role", self.db.metadata,
+            autoload_with=self.db.engine,
+        )
+        self.db.tbl.project_role_permission = sqlalchemy.Table(
+            f"{module_name}__project_role_permission", self.db.metadata,
+            autoload_with=self.db.engine,
+        )
+        self.db.tbl.project_user_role = sqlalchemy.Table(
+            f"{module_name}__project_user_role", self.db.metadata,
+            autoload_with=self.db.engine,
+        )
         # Init
         self.descriptor.init_rpcs()
         self.descriptor.init_methods()
