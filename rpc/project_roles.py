@@ -101,15 +101,14 @@ class RPC:  # pylint: disable=R0903,E1101
                         self.db.tbl.project_role.c.project_id == project_id,
                         self.db.tbl.project_role.c.name == name,
                     )
-                ).mappings().one()
-            #
-            if id_ is not ...:
+                ).mappings().one_or_none()
+            elif id_ is not ...:
                 project_role = connection.execute(
                     self.db.tbl.project_role.select().where(
                         self.db.tbl.project_role.c.project_id == project_id,
                         self.db.tbl.project_role.c.id == id_,
                     )
-                ).mappings().one()
+                ).mappings().one_or_none()
         #
         if project_role is None:
             return None
