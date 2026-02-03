@@ -21,6 +21,7 @@
 import datetime
 from typing import Optional
 
+from sqlalchemy.exc import NoResultFound
 from pylon.core.tools import web, log  # pylint: disable=E0401,E0611,W0611
 
 from ..tools import rpc_tools
@@ -84,32 +85,39 @@ class RPC:  # pylint: disable=R0903,E1101
     def get_user(self, user_id: Optional[int] = None,
                   email: Optional[str] = None,
                   name: Optional[str] = None):
-        if user_id is not None:
-            with self.db.engine.connect() as connection:
-                user = connection.execute(
-                    self.db.tbl.user.select().where(
-                        self.db.tbl.user.c.id == user_id,
-                    )
-                ).mappings().one()
-            return db_tools.sqlalchemy_mapping_to_dict(user)
-        #
-        if email is not None:
-            with self.db.engine.connect() as connection:
-                user = connection.execute(
-                    self.db.tbl.user.select().where(
-                        self.db.tbl.user.c.email == email,
-                    )
-                ).mappings().one()
-            return db_tools.sqlalchemy_mapping_to_dict(user)
-        #
-        if name is not None:
-            with self.db.engine.connect() as connection:
-                user = connection.execute(
-                    self.db.tbl.user.select().where(
-                        self.db.tbl.user.c.name == name,
-                    )
-                ).mappings().one()
-            return db_tools.sqlalchemy_mapping_to_dict(user)
+        try:
+            if user_id is not None:
+                with self.db.engine.connect() as connection:
+                    user = connection.execute(
+                        self.db.tbl.user.select().where(
+                            self.db.tbl.user.c.id == user_id,
+                        )
+                    ).mappings().one()
+                return db_tools.sqlalchemy_mapping_to_dict(user)
+            if email is not None:
+                with self.db.engine.connect() as connection:
+                    user = connection.execute(
+                        self.db.tbl.user.select().where(
+                            self.db.tbl.user.c.email == email,
+                        )
+                    ).mappings().one()
+                return db_tools.sqlalchemy_mapping_to_dict(user)
+            if name is not None:
+                with self.db.engine.connect() as connection:
+                    user = connection.execute(
+                        self.db.tbl.user.select().where(
+                            self.db.tbl.user.c.name == name,
+                        )
+                    ).mappings().one()
+                return db_tools.sqlalchemy_mapping_to_dict(user)
+        except NoResultFound:
+            if user_id is not None:
+                raise RuntimeError(f"No such user found: id={user_id}") from None
+            if email is not None:
+                raise RuntimeError(f"No such user found: email={email}") from None
+            if name is not None:
+                raise RuntimeError(f"No such user found: name={name}") from None
+            raise RuntimeError("No such user found") from None
         #
         raise ValueError("ID or name is not provided")
 
