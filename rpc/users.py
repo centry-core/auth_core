@@ -21,6 +21,8 @@
 import datetime
 from typing import Optional
 
+import sqlalchemy
+from sqlalchemy import func, or_, case, asc, desc
 from sqlalchemy.exc import NoResultFound
 from pylon.core.tools import web, log  # pylint: disable=E0401,E0611,W0611
 
@@ -132,3 +134,102 @@ class RPC:  # pylint: disable=R0903,E1101
         with self.db.engine.connect() as connection:
             users = connection.execute(query).mappings().all()
         return [db_tools.sqlalchemy_mapping_to_dict(item) for item in users]
+
+    @web.rpc("auth_list_users_paginated", "list_users_paginated")
+    @rpc_tools.wrap_exceptions(RuntimeError)
+    def list_users_paginated(
+            self,
+            limit: int = 20,
+            offset: int = 0,
+            search: Optional[str] = None,
+            user_type: Optional[str] = None,
+            sort_by: str = "name",
+            sort_order: str = "asc",
+    ) -> dict:
+        tbl = self.db.tbl.user
+        #
+        allowed_sort = {"name", "email", "last_login", "id"}
+        if sort_by not in allowed_sort:
+            sort_by = "name"
+        if sort_order not in ("asc", "desc"):
+            sort_order = "asc"
+        #
+        is_system = or_(
+            tbl.c.email.like("system_user_%@centry.user"),
+            tbl.c.email == "system@centry.user",
+        )
+        #
+        with self.db.engine.connect() as connection:
+            # Tab counts (without search filter)
+            counts_q = sqlalchemy.select(
+                func.count().label("total_count"),
+                func.sum(case((is_system, 1), else_=0)).label("system_count"),
+            ).select_from(tbl)
+            counts_row = connection.execute(counts_q).one()
+            system_count = int(counts_row.system_count or 0)
+            platform_count = int(counts_row.total_count) - system_count
+            #
+            # Filtered query
+            query = tbl.select()
+            #
+            if user_type == "system":
+                query = query.where(is_system)
+            elif user_type == "platform":
+                query = query.where(~is_system)
+            #
+            if search:
+                search_pattern = f"%{search}%"
+                query = query.where(
+                    or_(
+                        tbl.c.name.ilike(search_pattern),
+                        tbl.c.email.ilike(search_pattern),
+                    )
+                )
+            #
+            # Total after filters, before pagination
+            count_q = sqlalchemy.select(
+                func.count()
+            ).select_from(query.alias())
+            total = connection.execute(count_q).scalar()
+            #
+            # Sort
+            sort_col = getattr(tbl.c, sort_by)
+            sort_fn = desc if sort_order == "desc" else asc
+            query = query.order_by(sort_fn(sort_col).nullslast())
+            #
+            # Paginate
+            query = query.limit(limit).offset(offset)
+            #
+            rows = connection.execute(query).mappings().all()
+            #
+            # Batch-check admin status (administration mode)
+            admin_user_ids = set()
+            user_ids = [row['id'] for row in rows]
+            if user_ids:
+                admin_role_q = sqlalchemy.select(
+                    self.db.tbl.role.c.id
+                ).where(
+                    self.db.tbl.role.c.name == 'admin',
+                    self.db.tbl.role.c.mode == 'administration',
+                )
+                admin_role_row = connection.execute(admin_role_q).first()
+                if admin_role_row:
+                    admin_users_q = sqlalchemy.select(
+                        self.db.tbl.user_role.c.user_id
+                    ).where(
+                        self.db.tbl.user_role.c.role_id == admin_role_row[0],
+                        self.db.tbl.user_role.c.user_id.in_(user_ids),
+                    )
+                    admin_user_ids = {r[0] for r in connection.execute(admin_users_q).all()}
+        #
+        return {
+            "rows": [
+                {**db_tools.sqlalchemy_mapping_to_dict(item), "is_admin": item['id'] in admin_user_ids}
+                for item in rows
+            ],
+            "total": total,
+            "counts": {
+                "platform": platform_count,
+                "system": system_count,
+            },
+        }

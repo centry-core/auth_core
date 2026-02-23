@@ -242,22 +242,38 @@ class RPC:  # pylint: disable=R0903,E1101
     @web.rpc("auth_get_project_user_permissions", "get_project_user_permissions")
     @rpc_tools.wrap_exceptions(RuntimeError)
     def get_project_user_permissions(self, project_id, user_id):
-        query = sqlalchemy.select(
-            self.db.tbl.project_role_permission.c.permission
-        ).select_from(
-            self.db.tbl.project_user_role.join(
-                self.db.tbl.project_role_permission,
-                self.db.tbl.project_user_role.c.role_id == self.db.tbl.project_role_permission.c.role_id
-            )
-        ).where(
-            self.db.tbl.project_user_role.c.project_id == project_id,
-            self.db.tbl.project_user_role.c.user_id == user_id,
-        )
-        #
+        """Resolve permissions for a user in a project from central role config."""
         with self.db.engine.connect() as connection:
-            results = connection.execute(query).all()
-        #
-        return {row[0] for row in results}
+            # Get role names for this user in this project
+            role_names_q = sqlalchemy.select(
+                self.db.tbl.project_role.c.name
+            ).select_from(
+                self.db.tbl.project_user_role.join(
+                    self.db.tbl.project_role,
+                    self.db.tbl.project_user_role.c.role_id == self.db.tbl.project_role.c.id
+                )
+            ).where(
+                self.db.tbl.project_user_role.c.project_id == project_id,
+                self.db.tbl.project_user_role.c.user_id == user_id,
+            )
+            role_names = {row[0] for row in connection.execute(role_names_q).all()}
+            #
+            if not role_names:
+                return set()
+            #
+            # Get permissions from central role_permission (mode='default')
+            perms_q = sqlalchemy.select(
+                self.db.tbl.role_permission.c.permission
+            ).select_from(
+                self.db.tbl.role.join(
+                    self.db.tbl.role_permission,
+                    self.db.tbl.role.c.id == self.db.tbl.role_permission.c.role_id
+                )
+            ).where(
+                self.db.tbl.role.c.mode == 'default',
+                self.db.tbl.role.c.name.in_(role_names),
+            )
+            return {row[0] for row in connection.execute(perms_q).all()}
 
     @web.rpc("auth_check_user_in_project", "check_user_in_project")
     @rpc_tools.wrap_exceptions(RuntimeError)

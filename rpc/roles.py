@@ -155,6 +155,29 @@ class RPC:  # pylint: disable=R0903,E1101
                         )
                     )
 
+    @web.rpc("auth_remove_user_from_role", "remove_user_from_role")
+    def remove_user_from_role(self,
+                              user_id: int,
+                              role_name: str,
+                              mode: str = 'administration') -> None:
+        with self.db.engine.connect() as connection:
+            role = connection.execute(
+                self.db.tbl.role.select().where(
+                    self.db.tbl.role.c.name == role_name,
+                    self.db.tbl.role.c.mode == mode,
+                )
+            ).mappings().first()
+            #
+            if role is None:
+                return
+            #
+            connection.execute(
+                self.db.tbl.user_role.delete().where(
+                    self.db.tbl.user_role.c.user_id == user_id,
+                    self.db.tbl.user_role.c.role_id == role['id'],
+                )
+            )
+
     @web.rpc("auth_get_permissions", "get_permissions")
     def get_permissions(self, mode="administration"):
         with self.db.engine.connect() as connection:
