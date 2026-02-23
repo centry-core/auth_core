@@ -242,11 +242,16 @@ class RPC:  # pylint: disable=R0903,E1101
     @web.rpc("auth_get_project_user_permissions", "get_project_user_permissions")
     @rpc_tools.wrap_exceptions(RuntimeError)
     def get_project_user_permissions(self, project_id, user_id):
-        """Resolve permissions for a user in a project from central role config."""
+        """Resolve permissions for a user in a project.
+
+        Checks project_role_permission first (per-project overrides).
+        Falls back to central role_permission (mode='default') if no overrides exist.
+        """
         with self.db.engine.connect() as connection:
-            # Get role names for this user in this project
-            role_names_q = sqlalchemy.select(
-                self.db.tbl.project_role.c.name
+            # Step A: Get role IDs + names for this user in this project
+            role_q = sqlalchemy.select(
+                self.db.tbl.project_role.c.id,
+                self.db.tbl.project_role.c.name,
             ).select_from(
                 self.db.tbl.project_user_role.join(
                     self.db.tbl.project_role,
@@ -256,12 +261,27 @@ class RPC:  # pylint: disable=R0903,E1101
                 self.db.tbl.project_user_role.c.project_id == project_id,
                 self.db.tbl.project_user_role.c.user_id == user_id,
             )
-            role_names = {row[0] for row in connection.execute(role_names_q).all()}
+            rows = connection.execute(role_q).all()
             #
-            if not role_names:
+            if not rows:
                 return set()
             #
-            # Get permissions from central role_permission (mode='default')
+            role_ids = {r[0] for r in rows}
+            role_names = {r[1] for r in rows}
+            #
+            # Step B: Check project-specific permission overrides
+            project_perms_q = sqlalchemy.select(
+                self.db.tbl.project_role_permission.c.permission
+            ).where(
+                self.db.tbl.project_role_permission.c.project_id == project_id,
+                self.db.tbl.project_role_permission.c.role_id.in_(role_ids),
+            )
+            project_perms = {row[0] for row in connection.execute(project_perms_q).all()}
+            #
+            if project_perms:
+                return project_perms
+            #
+            # Step C: Fall back to central role_permission (mode='default')
             perms_q = sqlalchemy.select(
                 self.db.tbl.role_permission.c.permission
             ).select_from(
