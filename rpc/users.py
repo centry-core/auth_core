@@ -54,13 +54,16 @@ class RPC:  # pylint: disable=R0903,E1101
             self,
             id_: int,
             name: Optional[str] = '',
-            last_login: Optional[datetime.datetime] = None
+            last_login: Optional[datetime.datetime] = None,
+            suspended: Optional[bool] = None,
     ):
         values = {}
         if name:
             values['name'] = name
         if last_login:
             values["last_login"] = last_login
+        if suspended is not None:
+            values["suspended"] = suspended
         with self.db.engine.connect() as connection:
             return connection.execute(
                 self.db.tbl.user.update().where(
@@ -148,7 +151,7 @@ class RPC:  # pylint: disable=R0903,E1101
     ) -> dict:
         tbl = self.db.tbl.user
         #
-        allowed_sort = {"name", "email", "last_login", "id"}
+        allowed_sort = {"name", "email", "last_login", "id", "suspended"}
         if sort_by not in allowed_sort:
             sort_by = "name"
         if sort_order not in ("asc", "desc"):
