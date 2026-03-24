@@ -29,64 +29,139 @@ import sqlalchemy as sa  # pylint: disable=E0401,C0413
 def upgrade(module, payload):
     _ = payload
     module_name = module.descriptor.name
+    
+    # Get database dialect
+    connection = op.get_bind()
+    db_dialect = connection.dialect.name
 
     # D1. Add public project permissions + monitoring to viewer role
-    op.execute(
-        sa.text(
-            f"""
-            INSERT INTO {module_name}__role_permission (role_id, permission)
-            SELECT r.id, p.perm
-            FROM {module_name}__role r
-            CROSS JOIN (VALUES
-                ('models.promptlib_shared.author.detail'),
-                ('models.promptlib_shared.collection.details'),
-                ('models.promptlib_shared.collections.list'),
-                ('models.promptlib_shared.predict.post'),
-                ('models.promptlib_shared.public_collection.details'),
-                ('models.promptlib_shared.tags.list'),
-                ('models.promptlib_shared.trending_authors.list'),
-                ('models.prompt_lib.feedbacks.create'),
-                ('models.applications.public_applications.list'),
-                ('models.applications.public_application.details'),
-                ('models.applications.task.delete'),
-                ('models.applications.toolkits.details'),
-                ('models.applications.trending_authors.list'),
-                ('models.applications.export_import.export'),
-                ('models.applications.fork.post'),
-                ('models.chat.participants.create'),
-                ('models.chat.folders.get'),
-                ('models.chat.folders.update'),
-                ('models.chat.folders.create'),
-                ('monitoring.monitorable')
-            ) AS p(perm)
-            WHERE r.name = 'viewer' AND r.mode = 'default'
-            AND NOT EXISTS (
-                SELECT 1 FROM {module_name}__role_permission rp
-                WHERE rp.role_id = r.id AND rp.permission = p.perm
-            );
-            """
+    if db_dialect == 'sqlite':
+        # SQLite doesn't support VALUES clause, use UNION instead
+        permissions_d1 = [
+            'models.promptlib_shared.author.detail',
+            'models.promptlib_shared.collection.details',
+            'models.promptlib_shared.collections.list',
+            'models.promptlib_shared.predict.post',
+            'models.promptlib_shared.public_collection.details',
+            'models.promptlib_shared.tags.list',
+            'models.promptlib_shared.trending_authors.list',
+            'models.prompt_lib.feedbacks.create',
+            'models.applications.public_applications.list',
+            'models.applications.public_application.details',
+            'models.applications.task.delete',
+            'models.applications.toolkits.details',
+            'models.applications.trending_authors.list',
+            'models.applications.export_import.export',
+            'models.applications.fork.post',
+            'models.chat.participants.create',
+            'models.chat.folders.get',
+            'models.chat.folders.update',
+            'models.chat.folders.create',
+            'monitoring.monitorable'
+        ]
+        
+        # Build UNION query for SQLite
+        union_parts = [f"SELECT '{perm}' as perm" for perm in permissions_d1]
+        union_query = ' UNION ALL '.join(union_parts)
+        
+        op.execute(
+            sa.text(
+                f"""
+                INSERT INTO {module_name}__role_permission (role_id, permission)
+                SELECT r.id, p.perm
+                FROM {module_name}__role r
+                CROSS JOIN ({union_query}) AS p
+                WHERE r.name = 'viewer' AND r.mode = 'default'
+                AND NOT EXISTS (
+                    SELECT 1 FROM {module_name}__role_permission rp
+                    WHERE rp.role_id = r.id AND rp.permission = p.perm
+                );
+                """
+            )
         )
-    )
+    else:
+        # PostgreSQL and other databases supporting VALUES
+        op.execute(
+            sa.text(
+                f"""
+                INSERT INTO {module_name}__role_permission (role_id, permission)
+                SELECT r.id, p.perm
+                FROM {module_name}__role r
+                CROSS JOIN (VALUES
+                    ('models.promptlib_shared.author.detail'),
+                    ('models.promptlib_shared.collection.details'),
+                    ('models.promptlib_shared.collections.list'),
+                    ('models.promptlib_shared.predict.post'),
+                    ('models.promptlib_shared.public_collection.details'),
+                    ('models.promptlib_shared.tags.list'),
+                    ('models.promptlib_shared.trending_authors.list'),
+                    ('models.prompt_lib.feedbacks.create'),
+                    ('models.applications.public_applications.list'),
+                    ('models.applications.public_application.details'),
+                    ('models.applications.task.delete'),
+                    ('models.applications.toolkits.details'),
+                    ('models.applications.trending_authors.list'),
+                    ('models.applications.export_import.export'),
+                    ('models.applications.fork.post'),
+                    ('models.chat.participants.create'),
+                    ('models.chat.folders.get'),
+                    ('models.chat.folders.update'),
+                    ('models.chat.folders.create'),
+                    ('monitoring.monitorable')
+                ) AS p(perm)
+                WHERE r.name = 'viewer' AND r.mode = 'default'
+                AND NOT EXISTS (
+                    SELECT 1 FROM {module_name}__role_permission rp
+                    WHERE rp.role_id = r.id AND rp.permission = p.perm
+                );
+                """
+            )
+        )
 
     # D2. Add moderator permissions to editor role
-    op.execute(
-        sa.text(
-            f"""
-            INSERT INTO {module_name}__role_permission (role_id, permission)
-            SELECT r.id, p.perm
-            FROM {module_name}__role r
-            CROSS JOIN (VALUES
-                ('models.promptlib_shared.approve_collection.post'),
-                ('models.promptlib_shared.reject_collection.delete')
-            ) AS p(perm)
-            WHERE r.name = 'editor' AND r.mode = 'default'
-            AND NOT EXISTS (
-                SELECT 1 FROM {module_name}__role_permission rp
-                WHERE rp.role_id = r.id AND rp.permission = p.perm
-            );
-            """
+    if db_dialect == 'sqlite':
+        permissions_d2 = [
+            'models.promptlib_shared.approve_collection.post',
+            'models.promptlib_shared.reject_collection.delete'
+        ]
+        
+        union_parts = [f"SELECT '{perm}' as perm" for perm in permissions_d2]
+        union_query = ' UNION ALL '.join(union_parts)
+        
+        op.execute(
+            sa.text(
+                f"""
+                INSERT INTO {module_name}__role_permission (role_id, permission)
+                SELECT r.id, p.perm
+                FROM {module_name}__role r
+                CROSS JOIN ({union_query}) AS p
+                WHERE r.name = 'editor' AND r.mode = 'default'
+                AND NOT EXISTS (
+                    SELECT 1 FROM {module_name}__role_permission rp
+                    WHERE rp.role_id = r.id AND rp.permission = p.perm
+                );
+                """
+            )
         )
-    )
+    else:
+        op.execute(
+            sa.text(
+                f"""
+                INSERT INTO {module_name}__role_permission (role_id, permission)
+                SELECT r.id, p.perm
+                FROM {module_name}__role r
+                CROSS JOIN (VALUES
+                    ('models.promptlib_shared.approve_collection.post'),
+                    ('models.promptlib_shared.reject_collection.delete')
+                ) AS p(perm)
+                WHERE r.name = 'editor' AND r.mode = 'default'
+                AND NOT EXISTS (
+                    SELECT 1 FROM {module_name}__role_permission rp
+                    WHERE rp.role_id = r.id AND rp.permission = p.perm
+                );
+                """
+            )
+        )
 
     # D3a. Migrate prompt_lib_public users -> viewer
     op.execute(
@@ -185,18 +260,31 @@ def upgrade(module, payload):
         )
     )
 
-    # D6. Truncate dead project_role_permission table
-    op.execute(
-        sa.text(
-            f"""
-            TRUNCATE TABLE {module_name}__project_role_permission;
-            """
+    # D6. Clear dead project_role_permission table
+    # Use DELETE for SQLite compatibility, TRUNCATE for PostgreSQL
+    if db_dialect == 'sqlite':
+        op.execute(
+            sa.text(
+                f"""
+                DELETE FROM {module_name}__project_role_permission;
+                """
+            )
         )
-    )
+    else:
+        op.execute(
+            sa.text(
+                f"""
+                TRUNCATE TABLE {module_name}__project_role_permission;
+                """
+            )
+        )
 
     # D7. Reclaim disk space
-    op.execute(sa.text("COMMIT"))
-    op.execute(sa.text(f"VACUUM FULL {module_name}__project_role_permission"))
+    if db_dialect == 'sqlite':
+        op.execute(sa.text("VACUUM"))
+    else:
+        op.execute(sa.text("COMMIT"))
+        op.execute(sa.text(f"VACUUM FULL {module_name}__project_role_permission"))
 
 
 def downgrade(module, payload):
