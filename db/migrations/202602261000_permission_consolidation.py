@@ -281,7 +281,7 @@ def upgrade(module, payload):
 
     # D7. Reclaim disk space
     if db_dialect == 'sqlite':
-        op.execute(sa.text("VACUUM"))
+        pass  # No VACCUM
     else:
         op.execute(sa.text("COMMIT"))
         op.execute(sa.text(f"VACUUM FULL {module_name}__project_role_permission"))
