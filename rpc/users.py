@@ -138,6 +138,21 @@ class RPC:  # pylint: disable=R0903,E1101
             users = connection.execute(query).mappings().all()
         return [db_tools.sqlalchemy_mapping_to_dict(item) for item in users]
 
+    @web.rpc("auth_search_users", "search_users")
+    @rpc_tools.wrap_exceptions(RuntimeError)
+    def search_users(self, search: str) -> list[dict]:
+        tbl = self.db.tbl.user
+        search_pattern = f"%{search}%"
+        query = tbl.select().where(
+            or_(
+                tbl.c.name.ilike(search_pattern),
+                tbl.c.email.ilike(search_pattern),
+            )
+        )
+        with self.db.engine.connect() as connection:
+            users = connection.execute(query).mappings().all()
+        return [db_tools.sqlalchemy_mapping_to_dict(item) for item in users]
+
     @web.rpc("auth_list_users_paginated", "list_users_paginated")
     @rpc_tools.wrap_exceptions(RuntimeError)
     def list_users_paginated(
